@@ -43,9 +43,25 @@ export interface NetHandlers {
 }
 
 // Public MQTT-over-WebSocket brokers (tried in order). No account required.
+// Public MQTT-over-WebSocket brokers (no account needed). The room code's first
+// letter records which broker the host is on, so guests connect to the same one
+// — this gives transparent failover if a broker is unreachable.
 const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
+const BROKER_PREFIX = ['E', 'H']; // one letter per broker, part of the room code
 const TOPIC = 'seqrz2';
 const QOS = 1 as const;
+
+function mqttOptions(pid: string, will: { topic: string; payload: string }) {
+  return {
+    clientId: `seqrz-${pid.slice(0, 24)}-${Math.random().toString(36).slice(2, 8)}`,
+    clean: true,
+    keepalive: 30,
+    reconnectPeriod: 2000, // auto-reconnect on a dropped connection
+    connectTimeout: 9000,
+    resubscribe: true, // restore subscriptions after a reconnect
+    will: { topic: will.topic, payload: will.payload, qos: QOS, retain: false },
+  };
+}
 
 const BOT_NAMES = [
   'Bot Ada',
@@ -62,6 +78,10 @@ function makeCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
+function makeCode4(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
 function rid(): string {
   try {
     if (crypto?.randomUUID) return crypto.randomUUID();
@@ -69,9 +89,6 @@ function rid(): string {
     /* ignore */
   }
   return 'b-' + Math.random().toString(36).slice(2);
-}
-function clientId(pid: string): string {
-  return `seqrz-${pid.slice(0, 24)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 interface HostPlayer {
@@ -98,8 +115,9 @@ export class NetHost {
   undoSnapshot: string | null = null;
   undoRequest: { byId: string; byName: string } | null = null;
   private h: NetHandlers;
-  private base: string;
+  private base = '';
   private opened = false;
+  private brokerIdx = 0;
 
   constructor(hostId: string, hostName: string, avatar: string | undefined, h: NetHandlers) {
     this.hostId = hostId;
@@ -108,28 +126,52 @@ export class NetHost {
     this.players = [
       { id: hostId, name: hostName || 'Player', avatar, isBot: false, connected: true },
     ];
-    this.code = makeCode();
+    this.code = '';
+    this.client = undefined as unknown as MqttClient;
+    this.connectBroker();
+  }
+
+  /** Try the current broker; if it can't be reached, fall over to the next. */
+  private connectBroker() {
+    const idx = this.brokerIdx;
+    this.code = BROKER_PREFIX[idx] + makeCode4();
     this.base = `${TOPIC}/${this.code}`;
-    this.client = mqtt.connect(BROKERS[0], {
-      clientId: clientId(hostId),
-      clean: true,
-      keepalive: 30,
-      reconnectPeriod: 2000,
-      connectTimeout: 12000,
-      // if the host drops, the broker tells everyone the room closed
-      will: {
+    let settled = false;
+    this.client = mqtt.connect(
+      BROKERS[idx],
+      mqttOptions(this.hostId, {
         topic: `${this.base}/b`,
         payload: JSON.stringify({ t: 'closed', reason: 'The host left.' }),
-        qos: QOS,
-        retain: false,
-      },
-    });
+      }),
+    );
+    const failover = () => {
+      if (settled) return;
+      settled = true;
+      try {
+        this.client.end(true);
+      } catch {
+        /* ignore */
+      }
+      this.brokerIdx += 1;
+      if (this.brokerIdx >= BROKERS.length) {
+        this.h.onError('Could not reach the game network. Please try again.');
+        return;
+      }
+      this.connectBroker();
+    };
+    const failTimer = setTimeout(failover, 9500);
     this.client.on('connect', () => {
+      settled = true;
+      clearTimeout(failTimer);
       this.client.subscribe(`${this.base}/h`, { qos: QOS }, () => {
         if (!this.opened) {
           this.opened = true;
           this.h.onJoined(this.code, false);
           this.pushRoom();
+        } else {
+          // reconnected mid-game: resend current room + state
+          this.pushRoom();
+          this.pushState();
         }
       });
     });
@@ -144,7 +186,7 @@ export class NetHost {
       this.onData(msg);
     });
     this.client.on('error', () => {
-      if (!this.opened) this.h.onError('Could not reach the game network. Try again.');
+      if (!this.opened) failover();
     });
   }
 
@@ -560,21 +602,17 @@ export class NetGuest {
     this.name = name;
     this.avatar = avatar;
     this.spectate = spectate;
-    this.base = `${TOPIC}/${code.trim().toUpperCase()}`;
-    this.client = mqtt.connect(BROKERS[0], {
-      clientId: clientId(playerId),
-      clean: true,
-      keepalive: 30,
-      reconnectPeriod: 2000,
-      connectTimeout: 12000,
-      // tell the host we left if our connection drops unexpectedly
-      will: {
+    const full = code.trim().toUpperCase();
+    this.base = `${TOPIC}/${full}`;
+    // the code's first letter tells us which broker the host is on
+    const idx = Math.max(0, BROKER_PREFIX.indexOf(full[0] ?? ''));
+    this.client = mqtt.connect(
+      BROKERS[idx] ?? BROKERS[0],
+      mqttOptions(playerId, {
         topic: `${this.base}/h`,
         payload: JSON.stringify({ t: 'bye', from: playerId }),
-        qos: QOS,
-        retain: false,
-      },
-    });
+      }),
+    );
     this.client.on('connect', () => {
       this.client.subscribe([`${this.base}/b`, `${this.base}/p/${playerId}`], { qos: QOS }, () => {
         this.hello();
