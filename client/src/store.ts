@@ -1,4 +1,3 @@
-import { io, type Socket } from 'socket.io-client';
 import { create } from 'zustand';
 import { chooseBotMove } from '../../shared/bot';
 import {
@@ -19,6 +18,7 @@ import type {
   RoomInfo,
 } from '../../shared/types';
 import { TEAMS } from '../../shared/types';
+import { P2PGuest, P2PHost, type NetHandlers } from './p2p';
 import { setHaptics, setMuted, sfx } from './sounds';
 
 export type View = 'home' | 'lobby' | 'game';
@@ -152,10 +152,10 @@ function getPlayerId(): string {
 }
 
 interface Store {
-  socket: Socket | null;
+  /** online multiplayer is peer-to-peer (WebRTC) — no server to host required */
+  net: P2PHost | P2PGuest | null;
+  netKind: 'host' | 'guest' | null;
   connected: boolean;
-  /** true once we've either connected or given up probing — used to stop
-   * showing "Connecting…" forever on a static (serverless) deploy */
   serverProbed: boolean;
   view: View;
   mode: Mode;
@@ -183,6 +183,8 @@ interface Store {
   localBotTimer: number | null;
 
   init: () => void;
+  netHandlers: () => NetHandlers;
+  _goHome: () => void;
   setName: (n: string) => void;
   setPref: <K extends keyof Prefs>(key: K, value: Prefs[K]) => void;
   createRoom: () => void;
@@ -219,9 +221,10 @@ const initialPrefs = loadPrefs();
 applyPrefs(initialPrefs);
 
 export const useStore = create<Store>((set, get) => ({
-  socket: null,
-  connected: false,
-  serverProbed: false,
+  net: null,
+  netKind: null,
+  connected: true,
+  serverProbed: true,
   view: 'home',
   mode: 'online',
   name: LS.get('seq:name') ?? '',
@@ -349,101 +352,75 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   init() {
-    if (get().socket) return;
-    const socket = io({ transports: ['websocket', 'polling'] });
-    set({ socket });
+    // Online multiplayer is peer-to-peer (WebRTC) and established on demand when
+    // a room is created or joined — nothing to connect up front. Pass & Play and
+    // vs-computer are fully local.
+  },
 
-    // if no server answers within a few seconds (e.g. a static GitHub Pages
-    // deploy with no backend), stop showing "Connecting…" and settle into
-    // offline mode where vs-computer and Pass & Play still work
-    setTimeout(() => set({ serverProbed: true }), 4500);
+  netHandlers(): NetHandlers {
+    return {
+      onRoomUpdate: (room) => {
+        if (get().mode !== 'online') return;
+        set((s) => ({
+          room,
+          view: room.started && s.game ? 'game' : room.started ? s.view : 'lobby',
+        }));
+      },
+      onGameState: (g) => {
+        if (get().mode !== 'online') return;
+        set({ spectating: !!g.spectator });
+        get().ingestGameState(g);
+      },
+      onChat: (m) => {
+        const msg = { ...m, ts: m.ts || Date.now() };
+        if (msg.playerId !== get().playerId) sfx.chat();
+        set((s) => ({ chat: [...s.chat.slice(-99), msg] }));
+      },
+      onEmote: (m) => {
+        if (m.playerId !== get().playerId) sfx.emote();
+        const fe: FloatingEmote = { id: ++emoteId, emote: m.emote, name: m.name, team: m.team };
+        set((s) => ({ emotes: [...s.emotes, fe] }));
+        setTimeout(() => set((s) => ({ emotes: s.emotes.filter((e) => e.id !== fe.id) })), 2600);
+      },
+      onError: (msg) => {
+        sfx.error();
+        get().toast(msg, 'error');
+        // a failed create/join leaves us on home
+        if (!get().room && !get().game) get()._goHome();
+      },
+      onKicked: () => {
+        get().toast('You were removed from the room', 'error');
+        get()._goHome();
+      },
+      onJoined: (_code, spectator) => set({ spectating: spectator }),
+      onClosed: (reason) => {
+        get().toast(reason, 'error');
+        get()._goHome();
+      },
+    };
+  },
 
-    socket.on('connect', () => {
-      set({ connected: true, serverProbed: true });
-      const lastRoom = LS.get('seq:lastRoom');
-      if (lastRoom && !get().room && get().mode === 'online') {
-        set({ rejoining: true });
-        socket.emit('joinRoom', {
-          code: lastRoom,
-          name: get().name || 'Player',
-          playerId: get().playerId,
-          token: LS.get('seq:token') ?? '',
-        });
+  _goHome() {
+    const n = get().net;
+    if (n) {
+      try {
+        n.destroy();
+      } catch {
+        /* ignore */
       }
-    });
-
-    socket.on('disconnect', () => set({ connected: false }));
-
-    socket.on('roomJoined', ({ code, token }: { code: string; token?: string }) => {
-      LS.set('seq:lastRoom', code);
-      if (token) LS.set('seq:token', token);
-      set({ rejoining: false });
-    });
-
-    // another tab/device took over this player's session
-    socket.on('sessionMoved', () => {
-      LS.remove('seq:lastRoom');
-      set({ room: null, game: null, view: 'home', chat: [], mode: 'online' });
-      get().toast('Your session was opened in another tab.', 'info');
-    });
-
-    socket.on('roomUpdate', (room: RoomInfo) => {
-      if (get().mode === 'local') return;
-      const started = room.started;
-      set((s) => ({
-        room,
-        view: started && s.game ? 'game' : started ? s.view : 'lobby',
-      }));
-    });
-
-    socket.on('gameState', (game: ClientGameState) => {
-      if (get().mode === 'local') return;
-      set({ spectating: !!game.spectator });
-      get().ingestGameState(game);
-    });
-
-    socket.on('chat', (msg: ChatMessage) => {
-      if (msg.playerId !== get().playerId) sfx.chat();
-      set((s) => ({ chat: [...s.chat.slice(-99), msg] }));
-    });
-
-    socket.on('emote', (msg: EmoteMessage) => {
-      if (msg.playerId !== get().playerId) sfx.emote();
-      const fe: FloatingEmote = {
-        id: ++emoteId,
-        emote: msg.emote,
-        name: msg.name,
-        team: msg.team,
-      };
-      set((s) => ({ emotes: [...s.emotes, fe] }));
-      setTimeout(() => set((s) => ({ emotes: s.emotes.filter((e) => e.id !== fe.id) })), 2600);
-    });
-
-    socket.on('spectating', () => {
-      set({ spectating: true, mode: 'online' });
-    });
-
-    socket.on('errorMsg', (message: string) => {
-      if (get().rejoining) {
-        LS.remove('seq:lastRoom');
-        set({ rejoining: false });
-        return;
-      }
-      sfx.error();
-      get().toast(message, 'error');
-    });
-
-    socket.on('kicked', () => {
-      LS.remove('seq:lastRoom');
-      set({
-        room: null,
-        game: null,
-        view: 'home',
-        chat: [],
-        wasMyTurn: false,
-        lastEventSeen: 0,
-      });
-      get().toast('You were removed from the room', 'error');
+    }
+    set({
+      net: null,
+      netKind: null,
+      room: null,
+      game: null,
+      view: 'home',
+      chat: [],
+      mode: 'online',
+      spectating: false,
+      wasMyTurn: false,
+      lastEventSeen: 0,
+      selectedCard: null,
     });
   },
 
@@ -460,8 +437,10 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   createRoom() {
-    const { socket, name, playerId, prefs } = get();
-    socket?.emit('createRoom', { name: name || 'Player', playerId, avatar: prefs.avatar });
+    const { name, playerId, prefs } = get();
+    get()._goHome();
+    const host = new P2PHost(playerId, name || 'Player', prefs.avatar, get().netHandlers());
+    set({ net: host, netKind: 'host', mode: 'online', chat: [], lastEventSeen: 0, wasMyTurn: false });
   },
 
   quickPlay(players) {
@@ -475,20 +454,33 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   joinRoom(code) {
-    const { socket, name, playerId, prefs } = get();
-    socket?.emit('joinRoom', {
-      code: code.trim().toUpperCase(),
-      name: name || 'Player',
+    const { name, playerId, prefs } = get();
+    get()._goHome();
+    const guest = new P2PGuest(
+      code.trim().toUpperCase(),
       playerId,
-      token: LS.get('seq:token') ?? '',
-      avatar: prefs.avatar,
-    });
+      name || 'Player',
+      prefs.avatar,
+      false,
+      get().netHandlers(),
+    );
+    set({ net: guest, netKind: 'guest', mode: 'online', chat: [], lastEventSeen: 0, wasMyTurn: false });
+    get().toast('Connecting to room…');
   },
 
   spectate(code) {
-    const { socket, name, playerId } = get();
-    set({ lastEventSeen: 0, wasMyTurn: false, game: null });
-    socket?.emit('joinSpectate', { code: code.trim().toUpperCase(), name: name || 'Guest', playerId });
+    const { name, playerId, prefs } = get();
+    get()._goHome();
+    const guest = new P2PGuest(
+      code.trim().toUpperCase(),
+      playerId,
+      name || 'Guest',
+      prefs.avatar,
+      true,
+      get().netHandlers(),
+    );
+    set({ net: guest, netKind: 'guest', mode: 'online', chat: [], lastEventSeen: 0, wasMyTurn: false });
+    get().toast('Connecting to watch…');
   },
 
   leaveRoom() {
@@ -509,27 +501,43 @@ export const useStore = create<Store>((set, get) => ({
       });
       return;
     }
-    s.socket?.emit('leaveRoom');
-    LS.remove('seq:lastRoom');
-    set({
-      room: null,
-      game: null,
-      view: 'home',
-      chat: [],
-      selectedCard: null,
-      lastEventSeen: 0,
-      wasMyTurn: false,
-      spectating: false,
-    });
+    get()._goHome();
   },
 
-  addBot: () => get().socket?.emit('addBot'),
-  removePlayer: (id) => get().socket?.emit('removePlayer', { id }),
-  updateSettings: (s) => get().socket?.emit('updateSettings', s),
-  startGame: () => get().socket?.emit('startGame'),
-  sendEmote: (emote) => get().socket?.emit('emote', { emote }),
-  requestUndo: () => get().socket?.emit('requestUndo'),
-  respondUndo: (approve) => get().socket?.emit('respondUndo', { approve }),
+  addBot() {
+    const { net, netKind } = get();
+    if (netKind === 'host') (net as P2PHost).addBot();
+  },
+  removePlayer(id) {
+    const { net, netKind } = get();
+    if (netKind === 'host') (net as P2PHost).removePlayer(id);
+  },
+  updateSettings(cfg) {
+    const { net, netKind } = get();
+    if (netKind === 'host') (net as P2PHost).updateSettings(cfg);
+  },
+  startGame() {
+    const { net, netKind } = get();
+    if (netKind === 'host') {
+      const err = (net as P2PHost).start();
+      if (err) get().toast(err, 'error');
+    }
+  },
+  sendEmote(emote) {
+    const { net, netKind } = get();
+    if (netKind === 'host') (net as P2PHost).emoteLocal(emote);
+    else if (netKind === 'guest') (net as P2PGuest).send({ t: 'emote', emote });
+  },
+  requestUndo() {
+    const { net, netKind } = get();
+    if (netKind === 'host') (net as P2PHost).requestUndoLocal();
+    else if (netKind === 'guest') (net as P2PGuest).send({ t: 'undoReq' });
+  },
+  respondUndo(approve) {
+    const { net, netKind } = get();
+    if (netKind === 'host') (net as P2PHost).respondUndoLocal(approve);
+    else if (netKind === 'guest') (net as P2PGuest).send({ t: 'undoResp', approve });
+  },
 
   playMove(move) {
     const s = get();
@@ -547,7 +555,8 @@ export const useStore = create<Store>((set, get) => ({
       get().localTick();
       return;
     }
-    s.socket?.emit('playMove', move);
+    if (s.netKind === 'host') (s.net as P2PHost).localMove(move);
+    else if (s.netKind === 'guest') (s.net as P2PGuest).send({ t: 'move', move });
   },
 
   rematch() {
@@ -557,11 +566,18 @@ export const useStore = create<Store>((set, get) => ({
       get().startLocal(rotated);
       return;
     }
-    set({ lastEventSeen: 0 });
-    s.socket?.emit('rematch');
+    if (s.netKind === 'host') {
+      set({ lastEventSeen: 0 });
+      const err = (s.net as P2PHost).rematch();
+      if (err) get().toast(err, 'error');
+    }
   },
 
-  sendChat: (text) => get().socket?.emit('chat', { text }),
+  sendChat(text) {
+    const { net, netKind } = get();
+    if (netKind === 'host') (net as P2PHost).chatLocal(text);
+    else if (netKind === 'guest') (net as P2PGuest).send({ t: 'chat', text });
+  },
 
   selectCard(card) {
     if (card) sfx.select();

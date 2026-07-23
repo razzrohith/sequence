@@ -162,6 +162,9 @@ export default function Home() {
         <button className="btn-link" onClick={() => setShowRules(true)}>
           How to play
         </button>
+        <p className="home-foot">
+          Free browser game · vs AI, online with friends, or pass &amp; play · no download
+        </p>
       </motion.div>
       {showRules && <Rules onClose={() => setShowRules(false)} />}
       {showLocal && <LocalSetup onClose={() => setShowLocal(false)} />}
