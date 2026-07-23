@@ -18,7 +18,7 @@ import type {
   RoomInfo,
 } from '../../shared/types';
 import { TEAMS } from '../../shared/types';
-import { P2PGuest, P2PHost, type NetHandlers } from './p2p';
+import { NetGuest, NetHost, type NetHandlers } from './net';
 import { setHaptics, setMuted, sfx } from './sounds';
 
 export type View = 'home' | 'lobby' | 'game';
@@ -152,8 +152,8 @@ function getPlayerId(): string {
 }
 
 interface Store {
-  /** online multiplayer is peer-to-peer (WebRTC) — no server to host required */
-  net: P2PHost | P2PGuest | null;
+  /** online multiplayer relays through a public message broker — no server to host */
+  net: NetHost | NetGuest | null;
   netKind: 'host' | 'guest' | null;
   connected: boolean;
   serverProbed: boolean;
@@ -439,7 +439,7 @@ export const useStore = create<Store>((set, get) => ({
   createRoom() {
     const { name, playerId, prefs } = get();
     get()._goHome();
-    const host = new P2PHost(playerId, name || 'Player', prefs.avatar, get().netHandlers());
+    const host = new NetHost(playerId, name || 'Player', prefs.avatar, get().netHandlers());
     set({ net: host, netKind: 'host', mode: 'online', chat: [], lastEventSeen: 0, wasMyTurn: false });
   },
 
@@ -456,7 +456,7 @@ export const useStore = create<Store>((set, get) => ({
   joinRoom(code) {
     const { name, playerId, prefs } = get();
     get()._goHome();
-    const guest = new P2PGuest(
+    const guest = new NetGuest(
       code.trim().toUpperCase(),
       playerId,
       name || 'Player',
@@ -471,7 +471,7 @@ export const useStore = create<Store>((set, get) => ({
   spectate(code) {
     const { name, playerId, prefs } = get();
     get()._goHome();
-    const guest = new P2PGuest(
+    const guest = new NetGuest(
       code.trim().toUpperCase(),
       playerId,
       name || 'Guest',
@@ -506,37 +506,37 @@ export const useStore = create<Store>((set, get) => ({
 
   addBot() {
     const { net, netKind } = get();
-    if (netKind === 'host') (net as P2PHost).addBot();
+    if (netKind === 'host') (net as NetHost).addBot();
   },
   removePlayer(id) {
     const { net, netKind } = get();
-    if (netKind === 'host') (net as P2PHost).removePlayer(id);
+    if (netKind === 'host') (net as NetHost).removePlayer(id);
   },
   updateSettings(cfg) {
     const { net, netKind } = get();
-    if (netKind === 'host') (net as P2PHost).updateSettings(cfg);
+    if (netKind === 'host') (net as NetHost).updateSettings(cfg);
   },
   startGame() {
     const { net, netKind } = get();
     if (netKind === 'host') {
-      const err = (net as P2PHost).start();
+      const err = (net as NetHost).start();
       if (err) get().toast(err, 'error');
     }
   },
   sendEmote(emote) {
     const { net, netKind } = get();
-    if (netKind === 'host') (net as P2PHost).emoteLocal(emote);
-    else if (netKind === 'guest') (net as P2PGuest).send({ t: 'emote', emote });
+    if (netKind === 'host') (net as NetHost).emoteLocal(emote);
+    else if (netKind === 'guest') (net as NetGuest).send({ t: 'emote', emote });
   },
   requestUndo() {
     const { net, netKind } = get();
-    if (netKind === 'host') (net as P2PHost).requestUndoLocal();
-    else if (netKind === 'guest') (net as P2PGuest).send({ t: 'undoReq' });
+    if (netKind === 'host') (net as NetHost).requestUndoLocal();
+    else if (netKind === 'guest') (net as NetGuest).send({ t: 'undoReq' });
   },
   respondUndo(approve) {
     const { net, netKind } = get();
-    if (netKind === 'host') (net as P2PHost).respondUndoLocal(approve);
-    else if (netKind === 'guest') (net as P2PGuest).send({ t: 'undoResp', approve });
+    if (netKind === 'host') (net as NetHost).respondUndoLocal(approve);
+    else if (netKind === 'guest') (net as NetGuest).send({ t: 'undoResp', approve });
   },
 
   playMove(move) {
@@ -555,8 +555,8 @@ export const useStore = create<Store>((set, get) => ({
       get().localTick();
       return;
     }
-    if (s.netKind === 'host') (s.net as P2PHost).localMove(move);
-    else if (s.netKind === 'guest') (s.net as P2PGuest).send({ t: 'move', move });
+    if (s.netKind === 'host') (s.net as NetHost).localMove(move);
+    else if (s.netKind === 'guest') (s.net as NetGuest).send({ t: 'move', move });
   },
 
   rematch() {
@@ -568,15 +568,15 @@ export const useStore = create<Store>((set, get) => ({
     }
     if (s.netKind === 'host') {
       set({ lastEventSeen: 0 });
-      const err = (s.net as P2PHost).rematch();
+      const err = (s.net as NetHost).rematch();
       if (err) get().toast(err, 'error');
     }
   },
 
   sendChat(text) {
     const { net, netKind } = get();
-    if (netKind === 'host') (net as P2PHost).chatLocal(text);
-    else if (netKind === 'guest') (net as P2PGuest).send({ t: 'chat', text });
+    if (netKind === 'host') (net as NetHost).chatLocal(text);
+    else if (netKind === 'guest') (net as NetGuest).send({ t: 'chat', text });
   },
 
   selectCard(card) {

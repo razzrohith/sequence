@@ -1,15 +1,13 @@
-// Peer-to-peer multiplayer transport (WebRTC via PeerJS free cloud signaling).
+// Online multiplayer transport over a public MQTT broker (WebSocket).
 //
-// One player (the room creator) is the HOST: their browser runs the authoritative
-// game engine — exactly the same shared code the dedicated server uses — and
-// relays state to the other players over WebRTC data channels. Guests send their
-// moves to the host. This lets "Play with friends" work from a purely static
-// deploy (GitHub Pages) with no backend to host.
+// Both the host and the guests connect to the same always-on public broker and
+// exchange messages on topics namespaced by the room code. Unlike WebRTC there
+// is no peer-to-peer discovery or NAT traversal, so it works reliably across
+// different networks (laptop on Wi-Fi + phone on cellular, etc.).
 //
-// Reliability note: WebRTC needs to traverse NAT; the free PeerJS cloud provides
-// STUN but not TURN, so a small fraction of strict/corporate networks may fail to
-// connect. For those, a dedicated server is the fallback.
-import Peer, { type DataConnection } from 'peerjs';
+// The room creator is the HOST: their browser runs the authoritative game engine
+// (the same shared code the dedicated server uses) and relays state to guests.
+import mqtt, { type MqttClient } from 'mqtt';
 import { chooseBotMove } from '../../shared/bot';
 import {
   HAND_SIZES,
@@ -22,7 +20,6 @@ import {
   toClientState,
 } from '../../shared/game';
 import type {
-  BotDifficulty,
   ChatMessage,
   ClientGameState,
   EmoteMessage,
@@ -31,7 +28,6 @@ import type {
   LobbyPlayer,
   Move,
   RoomInfo,
-  Team,
 } from '../../shared/types';
 import { TEAMS } from '../../shared/types';
 
@@ -45,6 +41,11 @@ export interface NetHandlers {
   onJoined: (code: string, spectator: boolean) => void;
   onClosed: (reason: string) => void;
 }
+
+// Public MQTT-over-WebSocket brokers (tried in order). No account required.
+const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
+const TOPIC = 'seqrz2';
+const QOS = 1 as const;
 
 const BOT_NAMES = [
   'Bot Ada',
@@ -69,29 +70,26 @@ function rid(): string {
   }
   return 'b-' + Math.random().toString(36).slice(2);
 }
-const peerIdFor = (code: string) => `seqrz-${code}`;
+function clientId(pid: string): string {
+  return `seqrz-${pid.slice(0, 24)}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 interface HostPlayer {
   id: string;
   name: string;
   avatar?: string;
   isBot: boolean;
-  conn: DataConnection | null; // null for the host seat and bots
   connected: boolean;
-}
-interface Spectator {
-  conn: DataConnection;
-  name: string;
 }
 
 // ---------------- HOST ----------------
 
-export class P2PHost {
-  peer: Peer;
-  code = '';
+export class NetHost {
+  client: MqttClient;
+  code: string;
   hostId: string;
   players: HostPlayer[] = [];
-  spectators: Spectator[] = [];
+  spectators: { id: string; name: string }[] = [];
   settings: GameSettings;
   started = false;
   game: GameCore | null = null;
@@ -100,6 +98,7 @@ export class P2PHost {
   undoSnapshot: string | null = null;
   undoRequest: { byId: string; byName: string } | null = null;
   private h: NetHandlers;
+  private base: string;
   private opened = false;
 
   constructor(hostId: string, hostName: string, avatar: string | undefined, h: NetHandlers) {
@@ -107,131 +106,131 @@ export class P2PHost {
     this.h = h;
     this.settings = defaultSettings();
     this.players = [
-      { id: hostId, name: hostName || 'Player', avatar, isBot: false, conn: null, connected: true },
+      { id: hostId, name: hostName || 'Player', avatar, isBot: false, connected: true },
     ];
     this.code = makeCode();
-    this.peer = new Peer(peerIdFor(this.code), { debug: 0 });
-    this.peer.on('open', () => {
-      this.opened = true;
-      this.h.onJoined(this.code, false);
-      this.pushRoom();
+    this.base = `${TOPIC}/${this.code}`;
+    this.client = mqtt.connect(BROKERS[0], {
+      clientId: clientId(hostId),
+      clean: true,
+      keepalive: 30,
+      reconnectPeriod: 2000,
+      connectTimeout: 12000,
+      // if the host drops, the broker tells everyone the room closed
+      will: {
+        topic: `${this.base}/b`,
+        payload: JSON.stringify({ t: 'closed', reason: 'The host left.' }),
+        qos: QOS,
+        retain: false,
+      },
     });
-    // keep the room discoverable if the signaling socket blips
-    this.peer.on('disconnected', () => {
-      try {
-        this.peer.reconnect();
-      } catch {
-        /* ignore */
-      }
-    });
-    this.peer.on('connection', (conn) => this.onConn(conn));
-    this.peer.on('error', (err: { type?: string }) => {
-      if (!this.opened && err?.type === 'unavailable-id') {
-        // extremely unlikely code collision — pick a new one and retry
-        this.code = makeCode();
-        try {
-          this.peer.destroy();
-        } catch {
-          /* ignore */
-        }
-        this.peer = new Peer(peerIdFor(this.code), { debug: 0 });
-        this.peer.on('open', () => {
+    this.client.on('connect', () => {
+      this.client.subscribe(`${this.base}/h`, { qos: QOS }, () => {
+        if (!this.opened) {
           this.opened = true;
           this.h.onJoined(this.code, false);
           this.pushRoom();
-        });
-        this.peer.on('connection', (c) => this.onConn(c));
+        }
+      });
+    });
+    this.client.on('message', (topic, payload) => {
+      if (topic !== `${this.base}/h`) return;
+      let msg: Record<string, unknown>;
+      try {
+        msg = JSON.parse(payload.toString());
+      } catch {
         return;
       }
-      if (!this.opened) this.h.onError('Could not open a room. Please try again.');
+      this.onData(msg);
+    });
+    this.client.on('error', () => {
+      if (!this.opened) this.h.onError('Could not reach the game network. Try again.');
     });
   }
 
-  private onConn(conn: DataConnection) {
-    conn.on('data', (raw) => this.onData(conn, raw as Record<string, unknown>));
-    conn.on('close', () => this.onDisconnect(conn));
-    conn.on('error', () => this.onDisconnect(conn));
+  private pub(sub: string, msg: unknown) {
+    try {
+      this.client.publish(`${this.base}/${sub}`, JSON.stringify(msg), { qos: QOS });
+    } catch {
+      /* ignore */
+    }
+  }
+  private toPlayer(id: string, msg: unknown) {
+    this.pub(`p/${id}`, msg);
   }
 
   private clean(v: unknown, max = 20): string {
     return typeof v === 'string' ? v.slice(0, max).trim() : '';
   }
 
-  private onData(conn: DataConnection, msg: Record<string, unknown>) {
-    const t = msg?.t;
+  private onData(msg: Record<string, unknown>) {
+    const from = this.clean(msg.from, 64);
+    const t = msg.t;
     if (t === 'hello') {
-      const playerId = this.clean(msg.playerId, 64) || rid();
+      const playerId = from || rid();
       const name = this.clean(msg.name, 20) || 'Player';
       const avatar = this.clean(msg.avatar, 8) || undefined;
       const wantSpectate = msg.spectate === true;
       const existing = this.players.find((p) => p.id === playerId);
       if (existing) {
-        existing.conn = conn;
         existing.connected = true;
         existing.isBot = false;
         if (this.game) {
           const gp = this.game.players.find((p) => p.id === playerId);
           if (gp) gp.isBot = false;
         }
-        (conn as unknown as { _pid?: string })._pid = playerId;
-        conn.send({ t: 'joined', code: this.code, spectator: false });
+        this.toPlayer(playerId, { t: 'joined', code: this.code, spectator: false });
         this.pushRoom();
         this.pushState();
         if (this.game) this.scheduleBots();
         return;
       }
-      if (wantSpectate || (this.started && true)) {
-        // spectate if asked, or if the game already started (can't take a seat)
-        this.spectators.push({ conn, name });
-        (conn as unknown as { _spec?: boolean })._spec = true;
-        conn.send({ t: 'joined', code: this.code, spectator: true });
+      if (wantSpectate || this.started) {
+        if (!this.spectators.some((s) => s.id === playerId))
+          this.spectators.push({ id: playerId, name });
+        this.toPlayer(playerId, { t: 'joined', code: this.code, spectator: true });
         this.pushRoom();
         if (this.game) {
           const st = toClientState(this.game, '__spectator__');
           st.spectator = true;
           st.spectatorCount = this.spectators.length;
-          conn.send({ t: 'state', s: st });
+          this.toPlayer(playerId, { t: 'state', s: st });
         }
         return;
       }
       if (this.players.length >= 12) {
-        conn.send({ t: 'err', m: 'Room is full.' });
+        this.toPlayer(playerId, { t: 'err', m: 'Room is full.' });
         return;
       }
-      this.players.push({ id: playerId, name, avatar, isBot: false, conn, connected: true });
-      (conn as unknown as { _pid?: string })._pid = playerId;
-      conn.send({ t: 'joined', code: this.code, spectator: false });
+      this.players.push({ id: playerId, name, avatar, isBot: false, connected: true });
+      this.toPlayer(playerId, { t: 'joined', code: this.code, spectator: false });
       this.pushRoom();
       return;
     }
 
-    const pid = (conn as unknown as { _pid?: string })._pid;
-    if (!pid) return; // spectators / unjoined can't act
-    if (t === 'move') this.applyPlayerMove(pid, msg.move as Move);
-    else if (t === 'chat') this.chat(pid, this.clean(msg.text, 300));
-    else if (t === 'emote') this.emote(pid, this.clean(msg.emote, 8));
-    else if (t === 'undoReq') this.requestUndo(pid);
-    else if (t === 'undoResp') this.respondUndo(pid, msg.approve === true);
+    if (!from) return;
+    if (t === 'bye') this.onLeave(from);
+    else if (t === 'move') this.applyPlayerMove(from, msg.move as Move);
+    else if (t === 'chat') this.chat(from, this.clean(msg.text, 300));
+    else if (t === 'emote') this.emote(from, this.clean(msg.emote, 8));
+    else if (t === 'undoReq') this.requestUndo(from);
+    else if (t === 'undoResp') this.respondUndo(from, msg.approve === true);
   }
 
-  private onDisconnect(conn: DataConnection) {
-    const spec = this.spectators.find((s) => s.conn === conn);
-    if (spec) {
-      this.spectators = this.spectators.filter((s) => s.conn !== conn);
+  private onLeave(pid: string) {
+    if (this.spectators.some((s) => s.id === pid)) {
+      this.spectators = this.spectators.filter((s) => s.id !== pid);
       this.pushRoom();
       this.pushState();
       return;
     }
-    const pid = (conn as unknown as { _pid?: string })._pid;
     const p = this.players.find((x) => x.id === pid);
     if (!p) return;
     if (!this.started) {
       this.players = this.players.filter((x) => x.id !== pid);
       this.pushRoom();
     } else {
-      // AI takes over the seat so the game continues
       p.connected = false;
-      p.conn = null;
       p.isBot = true;
       const gp = this.game?.players.find((x) => x.id === pid);
       if (gp) gp.isBot = true;
@@ -241,10 +240,9 @@ export class P2PHost {
     }
   }
 
-  // ---- lobby ----
   private validTeamCount(): 2 | 3 {
     const opts = teamOptionsFor(this.players.length);
-    return (opts.includes(this.settings.teamCount) ? this.settings.teamCount : opts[0] ?? 2) as
+    return (opts.includes(this.settings.teamCount) ? this.settings.teamCount : (opts[0] ?? 2)) as
       | 2
       | 3;
   }
@@ -272,46 +270,43 @@ export class P2PHost {
   }
 
   private pushRoom() {
-    const info = this.roomInfo();
-    this.h.onRoomUpdate(info);
-    for (const p of this.players) if (p.conn) p.conn.send({ t: 'room', info });
-    for (const s of this.spectators) s.conn.send({ t: 'room', info });
+    this.h.onRoomUpdate(this.roomInfo());
+    this.pub('b', { t: 'room', info: this.roomInfo() });
   }
 
   private pushState() {
     if (!this.game) return;
-    // host's own view
     const mine = toClientState(this.game, this.hostId);
     mine.spectatorCount = this.spectators.length;
-    mine.undoRequest = this.undoRequest && this.undoRequest.byId !== this.hostId ? this.undoRequest : null;
+    mine.undoRequest =
+      this.undoRequest && this.undoRequest.byId !== this.hostId ? this.undoRequest : null;
     this.h.onGameState(mine);
     for (const p of this.players) {
-      if (!p.conn) continue;
+      if (p.id === this.hostId) continue;
       const st = toClientState(this.game, p.id);
       st.spectatorCount = this.spectators.length;
       st.undoRequest = this.undoRequest && this.undoRequest.byId !== p.id ? this.undoRequest : null;
-      p.conn.send({ t: 'state', s: st });
+      this.toPlayer(p.id, { t: 'state', s: st });
     }
     for (const s of this.spectators) {
       const st = toClientState(this.game, '__spectator__');
       st.spectator = true;
       st.spectatorCount = this.spectators.length;
-      s.conn.send({ t: 'state', s: st });
+      this.toPlayer(s.id, { t: 'state', s: st });
     }
   }
 
-  // ---- host controls (called by the store from the host's UI) ----
+  // ---- host controls ----
   addBot() {
     if (this.started || this.players.length >= 12) return;
     const used = new Set(this.players.map((p) => p.name));
     const name = BOT_NAMES.find((n) => !used.has(n)) ?? `Bot ${this.players.length + 1}`;
-    this.players.push({ id: rid(), name, isBot: true, conn: null, connected: true });
+    this.players.push({ id: rid(), name, isBot: true, connected: true });
     this.pushRoom();
   }
   removePlayer(id: string) {
     if (this.started || id === this.hostId) return;
-    const p = this.players.find((x) => x.id === id);
-    if (p?.conn) p.conn.send({ t: 'kicked' });
+    this.toPlayer(id, { t: 'kicked' });
     this.players = this.players.filter((x) => x.id !== id);
     this.pushRoom();
   }
@@ -352,14 +347,14 @@ export class P2PHost {
     return null;
   }
   rematch(): string | null {
-    if (!this.game || (!this.game.winner && !this.game.stalemate)) return 'The game is not over yet.';
-    this.players.push(this.players.shift()!); // rotate starter
+    if (!this.game || (!this.game.winner && !this.game.stalemate))
+      return 'The game is not over yet.';
+    this.players.push(this.players.shift()!);
     this.started = false;
     this.game = null;
     this.clearTimers();
     return this.start();
   }
-
   localMove(move: Move) {
     this.applyPlayerMove(this.hostId, move);
   }
@@ -382,16 +377,14 @@ export class P2PHost {
     const before = JSON.stringify(this.snapshot());
     const res = applyMove(this.game, pid, move);
     if (!res.ok) {
-      const target = this.players.find((p) => p.id === pid);
       if (pid === this.hostId) this.h.onError(res.error ?? 'Illegal move.');
-      else target?.conn?.send({ t: 'err', m: res.error ?? 'Illegal move.' });
+      else this.toPlayer(pid, { t: 'err', m: res.error ?? 'Illegal move.' });
       return;
     }
     this.undoSnapshot = before;
     this.undoRequest = null;
     this.afterChange();
   }
-
   private snapshot(): unknown {
     if (!this.game) return null;
     const { rng, ...rest } = this.game;
@@ -411,14 +404,13 @@ export class P2PHost {
       return false;
     }
   }
-
   private requestUndo(pid: string) {
     if (!this.game || !this.undoSnapshot) return;
     const last = this.game.log[this.game.log.length - 1];
     if (!last || last.playerId !== pid) return;
-    const humanOpponents = this.players.filter((p) => !p.isBot && p.connected && p.id !== pid);
+    const humanOpp = this.players.filter((p) => !p.isBot && p.connected && p.id !== pid);
     const me = this.players.find((p) => p.id === pid);
-    if (humanOpponents.length === 0) {
+    if (humanOpp.length === 0) {
       if (this.restore()) this.afterChange();
       return;
     }
@@ -434,7 +426,6 @@ export class P2PHost {
       this.pushState();
     }
   }
-
   private chat(pid: string, text: string) {
     if (!text) return;
     const p = this.players.find((x) => x.id === pid);
@@ -442,8 +433,7 @@ export class P2PHost {
     const gp = this.game?.players.find((x) => x.id === pid);
     const msg: ChatMessage = { playerId: pid, name: p.name, team: gp?.team ?? null, text, ts: 0 };
     this.h.onChat(msg);
-    for (const x of this.players) if (x.conn) x.conn.send({ t: 'chat', m: msg });
-    for (const s of this.spectators) s.conn.send({ t: 'chat', m: msg });
+    this.pub('b', { t: 'chat', m: msg });
   }
   private emote(pid: string, emote: string) {
     if (!emote) return;
@@ -452,8 +442,7 @@ export class P2PHost {
     const gp = this.game?.players.find((x) => x.id === pid);
     const msg: EmoteMessage = { playerId: pid, name: p.name, team: gp?.team ?? null, emote, ts: 0 };
     this.h.onEmote(msg);
-    for (const x of this.players) if (x.conn) x.conn.send({ t: 'emote', m: msg });
-    for (const s of this.spectators) s.conn.send({ t: 'emote', m: msg });
+    this.pub('b', { t: 'emote', m: msg });
   }
 
   private clearTimers() {
@@ -471,14 +460,12 @@ export class P2PHost {
     this.armTurnTimer();
     this.scheduleBots();
   }
-
   private scheduleBots() {
     const g = this.game;
     if (!g || g.winner || g.stalemate || this.botTimer) return;
     const cur = g.players[g.turn];
     const rp = this.players.find((p) => p.id === cur.id);
-    const actsAsBot = cur.isBot || (rp && !rp.connected);
-    if (!actsAsBot) return;
+    if (!(cur.isBot || (rp && !rp.connected))) return;
     this.botTimer = setTimeout(
       () => {
         this.botTimer = null;
@@ -504,7 +491,6 @@ export class P2PHost {
       750 + Math.random() * 800,
     );
   }
-
   private armTurnTimer() {
     if (this.turnTimer) {
       clearTimeout(this.turnTimer);
@@ -538,28 +524,27 @@ export class P2PHost {
 
   destroy() {
     this.clearTimers();
-    for (const p of this.players) p.conn?.send({ t: 'closed', reason: 'The host left.' });
-    for (const s of this.spectators) s.conn.send({ t: 'closed', reason: 'The host left.' });
+    this.pub('b', { t: 'closed', reason: 'The host left.' });
     setTimeout(() => {
       try {
-        this.peer.destroy();
+        this.client.end(true);
       } catch {
         /* ignore */
       }
-    }, 120);
+    }, 150);
   }
 }
 
 // ---------------- GUEST ----------------
 
-export class P2PGuest {
-  peer: Peer;
-  conn: DataConnection | null = null;
+export class NetGuest {
+  client: MqttClient;
   private h: NetHandlers;
   private playerId: string;
   private name: string;
   private avatar?: string;
   private spectate: boolean;
+  private base: string;
   private settled = false;
 
   constructor(
@@ -575,41 +560,66 @@ export class P2PGuest {
     this.name = name;
     this.avatar = avatar;
     this.spectate = spectate;
-    this.peer = new Peer({ debug: 0 });
-    this.peer.on('open', () => {
-      const conn = this.peer.connect(peerIdFor(code.toUpperCase()), { reliable: true });
-      this.conn = conn;
-      conn.on('open', () => {
-        conn.send({
+    this.base = `${TOPIC}/${code.trim().toUpperCase()}`;
+    this.client = mqtt.connect(BROKERS[0], {
+      clientId: clientId(playerId),
+      clean: true,
+      keepalive: 30,
+      reconnectPeriod: 2000,
+      connectTimeout: 12000,
+      // tell the host we left if our connection drops unexpectedly
+      will: {
+        topic: `${this.base}/h`,
+        payload: JSON.stringify({ t: 'bye', from: playerId }),
+        qos: QOS,
+        retain: false,
+      },
+    });
+    this.client.on('connect', () => {
+      this.client.subscribe([`${this.base}/b`, `${this.base}/p/${playerId}`], { qos: QOS }, () => {
+        this.hello();
+      });
+    });
+    this.client.on('message', (_topic, payload) => {
+      let msg: Record<string, unknown>;
+      try {
+        msg = JSON.parse(payload.toString());
+      } catch {
+        return;
+      }
+      this.onData(msg);
+    });
+    this.client.on('error', () => {
+      if (!this.settled) this.h.onError('Could not reach the game network. Try again.');
+    });
+    // resend hello a couple times in case the host was mid-subscribe, then give up
+    setTimeout(() => !this.settled && this.hello(), 1500);
+    setTimeout(() => !this.settled && this.hello(), 4000);
+    setTimeout(() => {
+      if (!this.settled) this.h.onError('Room not found. Check the code.');
+    }, 11000);
+  }
+
+  private hello() {
+    try {
+      this.client.publish(
+        `${this.base}/h`,
+        JSON.stringify({
           t: 'hello',
-          playerId: this.playerId,
+          from: this.playerId,
           name: this.name,
           avatar: this.avatar,
           spectate: this.spectate,
-        });
-      });
-      conn.on('data', (raw) => this.onData(raw as Record<string, unknown>));
-      conn.on('close', () => {
-        if (this.settled) this.h.onClosed('Disconnected from the host.');
-        else this.h.onError('Room not found. Check the code.');
-      });
-      conn.on('error', () => {
-        if (!this.settled) this.h.onError('Could not connect to that room.');
-      });
-    });
-    this.peer.on('error', (err: { type?: string }) => {
-      if (this.settled) return;
-      if (err?.type === 'peer-unavailable') this.h.onError('Room not found. Check the code.');
-      else this.h.onError('Could not connect. Try again.');
-    });
-    // give up if nothing happens
-    setTimeout(() => {
-      if (!this.settled) this.h.onError('Room not found. Check the code.');
-    }, 12000);
+        }),
+        { qos: QOS },
+      );
+    } catch {
+      /* ignore */
+    }
   }
 
   private onData(msg: Record<string, unknown>) {
-    const t = msg?.t;
+    const t = msg.t;
     if (t === 'joined') {
       this.settled = true;
       this.h.onJoined(String(msg.code ?? ''), msg.spectator === true);
@@ -624,17 +634,21 @@ export class P2PGuest {
 
   send(msg: Record<string, unknown>) {
     try {
-      this.conn?.send(msg);
+      this.client.publish(`${this.base}/h`, JSON.stringify({ ...msg, from: this.playerId }), {
+        qos: QOS,
+      });
     } catch {
       /* ignore */
     }
   }
   destroy() {
-    try {
-      this.conn?.close();
-      this.peer.destroy();
-    } catch {
-      /* ignore */
-    }
+    this.send({ t: 'bye' });
+    setTimeout(() => {
+      try {
+        this.client.end(true);
+      } catch {
+        /* ignore */
+      }
+    }, 150);
   }
 }
