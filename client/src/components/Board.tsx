@@ -4,10 +4,25 @@ import { BOARD_LAYOUT, isCorner } from '../../../shared/board';
 import { isOneEyed, legalCellsOnBoard } from '../../../shared/game';
 import type { Team } from '../../../shared/types';
 import { useStore } from '../store';
-import CardFace, { CornerEmblem } from './CardFace';
+import CardFace, { CornerEmblem, rankLabel } from './CardFace';
 
 /** Distinct per-team symbol shown on chips in colorblind mode. */
 const CB_GLYPH: Record<Team, string> = { red: '●', blue: '◆', green: '▲' };
+
+const SUIT_NAME: Record<string, string> = {
+  H: 'hearts',
+  D: 'diamonds',
+  S: 'spades',
+  C: 'clubs',
+};
+
+/** Spoken description of a cell, for screen readers. */
+function cellLabel(code: string, chip: Team | null, isLegal: boolean, removing: boolean): string {
+  const card = `${rankLabel(code)} of ${SUIT_NAME[code[1]] ?? code[1]}`;
+  const occupied = chip ? `, ${chip} chip` : ', empty';
+  const action = isLegal ? (removing ? ', press to remove this chip' : ', press to play here') : '';
+  return `${card}${occupied}${action}`;
+}
 
 function ChipRingText({ id }: { id: string }) {
   return (
@@ -117,6 +132,20 @@ export default function Board() {
                 ].join(' ')}
                 style={sweep >= 0 ? ({ '--sweep': sweep } as CSSProperties) : undefined}
                 onClick={() => onCellClick(r, c)}
+                // keyboard play: only legal cells take focus, so Tab walks the
+                // moves available for the selected card
+                role={corner ? undefined : 'button'}
+                tabIndex={isLegal ? 0 : -1}
+                aria-disabled={corner ? undefined : !isLegal}
+                aria-label={
+                  corner ? 'Free corner space' : cellLabel(code, cell.chip, isLegal, removing)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onCellClick(r, c);
+                  }
+                }}
               >
                 {corner ? (
                   <div className="corner-blank">

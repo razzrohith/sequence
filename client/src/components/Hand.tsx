@@ -106,6 +106,16 @@ export default function Hand() {
                 transition={{ type: 'spring', stiffness: 380, damping: 26 }}
                 whileHover={{ y: -18, scale: 1.06, rotate: 0 }}
                 onClick={() => selectCard(selected ? null : card)}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selected}
+                aria-label={`${card}${dead ? ', dead card' : ''}${selected ? ', selected' : ''}`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    selectCard(selected ? null : card);
+                  }
+                }}
               >
                 <CardFace card={card} />
                 {dead && <span className="dead-badge">DEAD</span>}

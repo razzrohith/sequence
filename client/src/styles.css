@@ -1286,6 +1286,14 @@ body[data-board='ocean'] .board-frame {
   box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.5), 0 4px 14px rgba(251, 191, 36, 0.25);
 }
 
+/* keyboard focus must be clearly visible on the board and in hand */
+.cell:focus-visible,
+.hand-card:focus-visible {
+  outline: 3px solid #fde68a;
+  outline-offset: 2px;
+  z-index: 20;
+}
+
 /* ---------- accessibility: reduce-motion & high-contrast ---------- */
 body.reduce-motion *,
 body.reduce-motion *::before,
