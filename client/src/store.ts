@@ -248,7 +248,8 @@ interface Store {
   chat: ChatMessage[];
   toasts: Toast[];
   selectedCard: Card | null;
-  hint: { card: Card; r: number; c: number } | null;
+  /** suggested move; `turn` pins it so it self-expires once the turn moves on */
+  hint: { card: Card; r: number; c: number; turn: number } | null;
   /** room code from an invite link, used to prefill the join field */
   pendingInvite: string | null;
   rejoining: boolean;
@@ -508,14 +509,16 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   _goHome() {
-    const n = get().net;
-    if (n) {
+    const s = get();
+    if (s.net) {
       try {
-        n.destroy();
+        s.net.destroy();
       } catch {
         /* ignore */
       }
     }
+    // stop the local game loop — otherwise bots keep playing in the background
+    if (s.localBotTimer) clearTimeout(s.localBotTimer);
     set({
       net: null,
       netKind: null,
@@ -528,6 +531,14 @@ export const useStore = create<Store>((set, get) => ({
       wasMyTurn: false,
       lastEventSeen: 0,
       selectedCard: null,
+      hint: null,
+      localCore: null,
+      localSeats: [],
+      localViewer: null,
+      localBotTimer: null,
+      handoffName: null,
+      // an unfinished local game stays resumable from Home
+      savedLocal: loadLocalGame(),
     });
   },
 
@@ -719,7 +730,10 @@ export const useStore = create<Store>((set, get) => ({
     const move = chooseBotMove(shim, mePlayer, 'hard');
     if (move.type === 'place' || move.type === 'remove') {
       sfx.select();
-      set({ selectedCard: move.card, hint: { card: move.card, r: move.r, c: move.c } });
+      set({
+        selectedCard: move.card,
+        hint: { card: move.card, r: move.r, c: move.c, turn: g.turn },
+      });
       get().toast(
         move.type === 'remove' ? 'Hint: remove the marked chip ✦' : 'Hint: play the marked space ✦',
         'info',

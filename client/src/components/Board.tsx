@@ -145,7 +145,9 @@ export default function Board() {
                 </AnimatePresence>
 
                 {isLast && <div className="last-ring" />}
-                {hint && hint.r === r && hint.c === c && <div className="hint-mark">✦</div>}
+                {hint && hint.turn === game.turn && hint.r === r && hint.c === c && (
+                  <div className="hint-mark">✦</div>
+                )}
               </div>
             );
           }),
