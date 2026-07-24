@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
-import { useStore } from '../store';
+import { BOARD_THEMES, useStore } from '../store';
 import Rules from './Rules';
 
 const TEAM_LABEL: Record<string, string> = { red: 'Red', blue: 'Blue', green: 'Green' };
@@ -33,11 +33,20 @@ export default function Lobby() {
   const canPickTeams = n % 6 === 0; // both 2 and 3 teams divide evenly
 
   // share a one-tap invite link; friends land on Home with the code prefilled
-  const copyCode = async () => {
+  const copyLink = async () => {
     const link = `${window.location.origin}${window.location.pathname}?r=${room.code}`;
     try {
       await navigator.clipboard.writeText(link);
       toast('Invite link copied!');
+    } catch {
+      toast(link, 'info');
+    }
+  };
+  // copying the bare code avoids anyone having to read it off the screen
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(room.code);
+      toast('Room code copied!');
     } catch {
       toast(room.code, 'info');
     }
@@ -58,10 +67,17 @@ export default function Lobby() {
           </button>
         </div>
 
-        <div className="room-code" onClick={copyCode} title="Click to copy">
+        <div className="room-code">
           <span className="rc-label">ROOM CODE</span>
           <span className="rc-value">{room.code}</span>
-          <span className="rc-copy">⧉ copy</span>
+          <div className="rc-actions">
+            <button className="rc-btn" onClick={copyLink}>
+              ⧉ Copy invite link
+            </button>
+            <button className="rc-btn" onClick={copyCode}>
+              ⧉ Copy code
+            </button>
+          </div>
         </div>
 
         {lanUrl && (
@@ -167,6 +183,19 @@ export default function Lobby() {
                   onClick={() => updateSettings({ turnSeconds: v as number })}
                 >
                   {lbl}
+                </button>
+              ))}
+            </div>
+
+            <div className="seg seg-wrap">
+              <span className="seg-label">Board for everyone</span>
+              {BOARD_THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  className={`seg-btn ${(room.settings.boardTheme ?? 'classic') === t.id ? 'on' : ''}`}
+                  onClick={() => updateSettings({ boardTheme: t.id })}
+                >
+                  {t.label}
                 </button>
               ))}
             </div>

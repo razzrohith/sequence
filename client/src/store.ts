@@ -70,7 +70,16 @@ export interface FloatingEmote {
 }
 
 export const AVATARS = ['🦊', '🐼', '🦉', '🐙', '🦁', '🐸', '🐨', '🦄', '🐝', '🐳', '🦖', '👽'];
-export const EMOTES = ['👍', '😂', '😮', '🔥', '😎', '😭', '🎉', '🤔', '❤️', '🍀'];
+export const EMOTES = [
+  // reactions
+  '👍', '👎', '😂', '🤣', '😮', '😱', '🔥', '😎', '😭', '🥲', '🤔', '🤯', '🥳', '🎉',
+  // playful trash talk
+  '😏', '😜', '🙃', '😈', '🤡', '💀', '🫠', '🙈', '🤌', '👀', '🧠', '🐐', '💩', '🥱',
+  // couples
+  '❤️', '😍', '🥰', '😘', '💋', '💕', '💘', '👩‍❤️‍👨', '🌹', '🥺', '👉👈', '💍',
+  // game flavour
+  '🍀', '🎯', '♠️', '♥️', '♦️', '♣️', '🃏', '🏆', '🧊', '⚡',
+];
 
 let toastId = 0;
 let emoteId = 0;
@@ -192,18 +201,28 @@ function loadStats(): Stats {
   }
 }
 
+/** In an online room the host's board choice wins so everyone sees the same
+ * table; otherwise each player's own Settings pick applies. */
+function applyBoardTheme(roomTheme: string | undefined, prefTheme: string) {
+  try {
+    document.body.dataset.board = roomTheme || prefTheme || 'classic';
+  } catch {
+    /* SSR/no-dom */
+  }
+}
+
 /** Apply prefs that have global side effects (sound engine, colorblind body class). */
-function applyPrefs(p: Prefs) {
+function applyPrefs(p: Prefs, roomTheme?: string) {
   setMuted(!p.sound);
   setHaptics(p.haptics);
   try {
     document.body.classList.toggle('colorblind', p.colorblind);
     document.body.classList.toggle('reduce-motion', p.reducedMotion);
     document.body.classList.toggle('high-contrast', p.highContrast);
-    document.body.dataset.board = p.boardTheme || 'classic';
   } catch {
     /* SSR/no-dom */
   }
+  applyBoardTheme(roomTheme, p.boardTheme);
 }
 
 /** A shared invite link (…/?r=CODE) prefills the join field. Read at module load
@@ -292,6 +311,7 @@ interface Store {
     botDifficulty?: BotDifficulty;
     turnSeconds?: number;
     winSequences?: number;
+    boardTheme?: string;
   }) => void;
   startGame: () => void;
   playMove: (move: Move) => void;
@@ -466,6 +486,8 @@ export const useStore = create<Store>((set, get) => ({
           room,
           view: room.started && s.game ? 'game' : room.started ? s.view : 'lobby',
         }));
+        // the host picks the board for the whole table
+        applyBoardTheme(room.settings?.boardTheme, get().prefs.boardTheme);
       },
       onGameState: (g) => {
         if (get().mode !== 'online') return;
@@ -557,7 +579,7 @@ export const useStore = create<Store>((set, get) => ({
   setPref(key, value) {
     const prefs = { ...get().prefs, [key]: value };
     LS.set('seq:prefs', JSON.stringify(prefs));
-    applyPrefs(prefs);
+    applyPrefs(prefs, get().room?.settings?.boardTheme);
     set({ prefs });
   },
 

@@ -45,8 +45,11 @@ export interface GameSettings {
   botDifficulty: BotDifficulty;
   /** seconds allowed per turn before auto-play; 0 = no timer */
   turnSeconds: number;
-  /** sequences needed to win; omit for the official default (2 teams → 2, 3 teams → 1) */
+  /** sequences needed to win; omit for the official default (2 teams -> 2, 3 teams -> 1) */
   winSequences?: number;
+  /** board theme the host has chosen for the whole room; players may still
+   * override it locally in Settings */
+  boardTheme?: string;
 }
 
 export interface SequenceRecord {

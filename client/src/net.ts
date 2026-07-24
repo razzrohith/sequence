@@ -95,7 +95,9 @@ function makeCode(): string {
   return Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 function makeCode4(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  // No O/0 or I/1, and none of the digits people misread as letters when copying
+  // a code off a screen: 8 as B, 5 as S, 6 as G, 2 as Z.
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ3479';
   return Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 function rid(): string {
@@ -456,8 +458,15 @@ export class NetHost {
     botDifficulty?: string;
     turnSeconds?: number;
     winSequences?: number;
+    boardTheme?: string;
   }) {
-    if (this.started) return;
+    // the board theme is purely cosmetic, so the host may change it mid-game
+    const themed = typeof s.boardTheme === 'string' && /^[a-z]{2,12}$/.test(s.boardTheme);
+    if (themed) this.settings.boardTheme = s.boardTheme;
+    if (this.started) {
+      if (themed) this.pushRoom();
+      return;
+    }
     if (s.teamCount === 2 || s.teamCount === 3) this.settings.teamCount = s.teamCount;
     if (typeof s.strictDraw === 'boolean') this.settings.strictDraw = s.strictDraw;
     if (s.botDifficulty === 'easy' || s.botDifficulty === 'medium' || s.botDifficulty === 'hard')

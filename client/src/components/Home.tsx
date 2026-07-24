@@ -130,7 +130,9 @@ export default function Home() {
               value={code}
               placeholder="CODE"
               maxLength={5}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              // strip spaces/punctuation first: with maxLength=5 a pasted code
+              // with a stray space would otherwise be truncated into a wrong code
+              onChange={(e) => setCode(e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase())}
               onKeyDown={(e) =>
                 e.key === 'Enter' &&
                 online &&

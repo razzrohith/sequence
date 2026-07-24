@@ -63,7 +63,9 @@ export function EmoteBar() {
               initial={{ opacity: 0, scale: 0.4, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.4 }}
-              transition={{ delay: i * 0.02 }}
+              // cap the stagger — with ~50 emotes a per-item delay would make the
+              // last one appear a full second late
+              transition={{ delay: Math.min(i * 0.008, 0.2) }}
               onClick={() => {
                 sendEmote(e);
                 setOpen(false);
