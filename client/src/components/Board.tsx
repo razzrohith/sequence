@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { type CSSProperties, useMemo } from 'react';
-import { BOARD_LAYOUT, isCorner } from '../../../shared/board';
+import { isCorner } from '../../../shared/board';
 import { isOneEyed, legalCellsOnBoard } from '../../../shared/game';
 import type { Team } from '../../../shared/types';
 import { useStore } from '../store';
@@ -57,7 +57,7 @@ export default function Board() {
   const legal = useMemo(() => {
     if (!game || !me || !selectedCard || !myTurn) return new Set<string>();
     return new Set(
-      legalCellsOnBoard(game.board, me.team, selectedCard).map(([r, c]) => `${r},${c}`),
+      legalCellsOnBoard(game.board, me.team, selectedCard, game.layout).map(([r, c]) => `${r},${c}`),
     );
   }, [game, me, selectedCard, myTurn]);
 
@@ -110,7 +110,7 @@ export default function Board() {
       <span className="bf-oval bottom">• ONE EYED JACKS REMOVE •</span>
 
       <div className={`board ${game.winner ? 'won' : ''}`}>
-        {BOARD_LAYOUT.map((row, r) =>
+        {game.layout.map((row, r) =>
           row.map((code, c) => {
             const key = `${r}-${c}`;
             const corner = isCorner(r, c);

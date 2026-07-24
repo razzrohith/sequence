@@ -312,6 +312,7 @@ interface Store {
     turnSeconds?: number;
     winSequences?: number;
     boardTheme?: string;
+    randomBoard?: boolean;
   }) => void;
   startGame: () => void;
   playMove: (move: Move) => void;
@@ -770,6 +771,7 @@ export const useStore = create<Store>((set, get) => ({
     // own hand/team, so a light shim of the client state is enough to score moves.
     const shim = {
       board: g.board,
+      layout: g.layout,
       settings: g.settings,
       deadExchangedThisTurn: g.deadExchangedThisTurn,
     } as unknown as GameCore;

@@ -221,6 +221,18 @@ export default function Lobby() {
             <label className="check">
               <input
                 type="checkbox"
+                checked={!!room.settings.randomBoard}
+                onChange={(e) => updateSettings({ randomBoard: e.target.checked })}
+              />
+              <span>
+                Shuffle the board <i>(deal the cards to random spaces instead of the
+                printed board)</i>
+              </span>
+            </label>
+
+            <label className="check">
+              <input
+                type="checkbox"
                 checked={room.settings.strictDraw}
                 onChange={(e) => updateSettings({ strictDraw: e.target.checked })}
               />

@@ -459,6 +459,7 @@ export class NetHost {
     turnSeconds?: number;
     winSequences?: number;
     boardTheme?: string;
+    randomBoard?: boolean;
   }) {
     // the board theme is purely cosmetic, so the host may change it mid-game
     const themed = typeof s.boardTheme === 'string' && /^[a-z]{2,12}$/.test(s.boardTheme);
@@ -473,6 +474,7 @@ export class NetHost {
       this.settings.botDifficulty = s.botDifficulty;
     if (typeof s.turnSeconds === 'number') this.settings.turnSeconds = s.turnSeconds;
     if (s.winSequences === 1 || s.winSequences === 2) this.settings.winSequences = s.winSequences;
+    if (typeof s.randomBoard === 'boolean') this.settings.randomBoard = s.randomBoard;
     this.pushRoom();
   }
   start(): string | null {

@@ -5,7 +5,7 @@
  *  3. Full bot-vs-bot simulations across every supported player count
  * Run: npm run selftest
  */
-import { BOARD_LAYOUT } from '../shared/board';
+import { BOARD_LAYOUT, cardAt, positionsFor, shuffledLayout } from '../shared/board';
 import { chooseBotMove } from '../shared/bot';
 import {
   HAND_SIZES,
@@ -47,14 +47,32 @@ function assert(cond: unknown, name: string) {
   }
 }
 
-function freshGame(playerCount = 2, teamCount: 2 | 3 = 2, strictDraw = false): GameCore {
+function freshGame(
+  playerCount = 2,
+  teamCount: 2 | 3 = 2,
+  strictDraw = false,
+  randomBoard = false,
+): GameCore {
   const players = Array.from({ length: playerCount }, (_, i) => ({
     id: `p${i}`,
     name: `P${i}`,
     isBot: true,
     team: TEAMS[i % teamCount],
   }));
-  return createGame(players, { teamCount, strictDraw });
+  return createGame(players, { teamCount, strictDraw, randomBoard } as never);
+}
+
+/** Chip four cells of a row for `team` and return the card printed on the fifth,
+ * so a "complete the sequence" test works whatever the layout is. */
+function runOf(game: GameCore, team: Team, r: number, c0: number) {
+  setChips(game, team, [
+    [r, c0],
+    [r, c0 + 1],
+    [r, c0 + 2],
+    [r, c0 + 3],
+  ]);
+  const c = c0 + 4;
+  return { card: cardAt(r, c, game.layout)!, r, c };
 }
 
 function setChips(game: GameCore, team: Team, cells: Array<[number, number]>) {
@@ -73,6 +91,44 @@ if (!layout.ok) {
   process.exit(1);
 }
 console.log('Board layout OK: 48 unique cards x2 + 4 free corners = 100 cells');
+
+// the default board must match the real printed Sequence board, in its printed
+// orientation (diamonds running along the top row, spades along the bottom)
+{
+  assert(
+    BOARD_LAYOUT[0].join(' ') === 'XX 6D 7D 8D 9D TD QD KD AD XX',
+    'default board: top row matches the printed board',
+  );
+  assert(
+    BOARD_LAYOUT[9].join(' ') === 'XX 9S 8S 7S 6S 5S 4S 3S 2S XX',
+    'default board: bottom row matches the printed board',
+  );
+  assert(
+    BOARD_LAYOUT[1].join(' ') === '5D 3H 2H 2S 3S 4S 5S 6S 7S AC',
+    'default board: second row matches the printed board',
+  );
+}
+
+// a shuffled board keeps every rule: 48 faces twice over, corners still free
+{
+  for (let i = 0; i < 50; i++) {
+    const shuffled = shuffledLayout(mulberry32(9000 + i));
+    const v = validateBoardLayout(shuffled);
+    if (!v.ok) {
+      assert(false, `shuffled board #${i} invalid: ${v.problems[0]}`);
+      break;
+    }
+    if (i === 49) assert(true, 'shuffled boards are always valid (50 seeds)');
+  }
+  const a = shuffledLayout(mulberry32(1));
+  const b = shuffledLayout(mulberry32(2));
+  assert(JSON.stringify(a) !== JSON.stringify(b), 'shuffled boards actually differ');
+  assert(
+    JSON.stringify(shuffledLayout(mulberry32(7))) ===
+      JSON.stringify(shuffledLayout(mulberry32(7))),
+    'a shuffled board is reproducible from its seed',
+  );
+}
 
 // ---------- 2. rule unit tests ----------
 console.log('\nRule unit tests:');
@@ -105,14 +161,9 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
   }));
   const g = createGame(players, { teamCount: 2, strictDraw: false, winSequences: 1 } as never);
   assert(g.required === 1, 'quick-win: winSequences=1 overrides the 2-sequence default');
-  setChips(g, 'red', [
-    [2, 2],
-    [2, 3],
-    [2, 4],
-    [2, 5],
-  ]);
-  giveHand(g, 0, ['6D']); // BOARD_LAYOUT[2][6] === '6D'
-  applyMove(g, 'p0', { type: 'place', card: '6D', r: 2, c: 6 });
+  const qw = runOf(g, 'red', 2, 2);
+  giveHand(g, 0, [qw.card]);
+  applyMove(g, 'p0', { type: 'place', card: qw.card, r: qw.r, c: qw.c });
   assert(g.winner === 'red', 'quick-win: a single sequence wins immediately');
 }
 
@@ -122,7 +173,7 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
   const cells = legalCellsFor(g, 'red', '7D');
   assert(cells.length === 2, 'a rank card has exactly 2 board cells');
   assert(
-    cells.every(([r, c]) => BOARD_LAYOUT[r][c] === '7D'),
+    cells.every(([r, c]) => cardAt(r, c, g.layout) === '7D'),
     'legal cells match the printed card',
   );
 }
@@ -141,14 +192,9 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
 // sequence completion + protection from one-eyed jacks
 {
   const g = freshGame();
-  setChips(g, 'red', [
-    [2, 2],
-    [2, 3],
-    [2, 4],
-    [2, 5],
-  ]);
-  giveHand(g, 0, ['6D']); // BOARD_LAYOUT[2][6] === '6D'
-  const res = applyMove(g, 'p0', { type: 'place', card: '6D', r: 2, c: 6 });
+  const run = runOf(g, 'red', 2, 2);
+  giveHand(g, 0, [run.card]);
+  const res = applyMove(g, 'p0', { type: 'place', card: run.card, r: run.r, c: run.c });
   assert(res.ok, 'placing the 5th chip is legal');
   assert(g.sequences.length === 1 && g.sequences[0].team === 'red', 'sequence detected');
   assert(
@@ -156,7 +202,7 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
     'sequence cells are locked',
   );
   giveHand(g, 1, ['JS']);
-  const rm = applyMove(g, 'p1', { type: 'remove', card: 'JS', r: 2, c: 4 });
+  const rm = applyMove(g, 'p1', { type: 'remove', card: 'JS', r: 2, c: 4 }); // inside the locked run
   assert(!rm.ok, 'one-eyed jack cannot break a completed sequence');
   assert(legalCellsFor(g, 'blue', 'JH').length === 0, 'no removable targets when all chips protected');
 }
@@ -174,8 +220,9 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
     [5, 7],
     [5, 8],
   ]);
-  giveHand(g, 0, ['2H']); // BOARD_LAYOUT[5][4] === '2H'
-  const res = applyMove(g, 'p0', { type: 'place', card: '2H', r: 5, c: 4 });
+  const gapCard = cardAt(5, 4, g.layout)!;
+  giveHand(g, 0, [gapCard]);
+  const res = applyMove(g, 'p0', { type: 'place', card: gapCard, r: 5, c: 4 });
   assert(res.ok, 'filling the 9-run gap is legal');
   assert(g.sequences.length === 2, 'a 9-run yields two sequences');
   const shared = g.sequences[0].cells.filter(([r, c]) =>
@@ -193,8 +240,9 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
     [0, 2],
     [0, 3],
   ]);
-  giveHand(g, 0, ['5S']); // BOARD_LAYOUT[0][4] === '5S'
-  const res = applyMove(g, 'p0', { type: 'place', card: '5S', r: 0, c: 4 });
+  const topCard = cardAt(0, 4, g.layout)!;
+  giveHand(g, 0, [topCard]);
+  const res = applyMove(g, 'p0', { type: 'place', card: topCard, r: 0, c: 4 });
   assert(res.ok && g.sequences.length === 1, 'corner + 4 chips completes a sequence');
   // blue can still use the same corner going down column 0
   setChips(g, 'blue', [
@@ -202,8 +250,9 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
     [2, 0],
     [3, 0],
   ]);
-  giveHand(g, 1, ['9C']); // BOARD_LAYOUT[4][0] === '9C'
-  const res2 = applyMove(g, 'p1', { type: 'place', card: '9C', r: 4, c: 0 });
+  const leftCard = cardAt(4, 0, g.layout)!;
+  giveHand(g, 1, [leftCard]);
+  const res2 = applyMove(g, 'p1', { type: 'place', card: leftCard, r: 4, c: 0 });
   assert(res2.ok && g.sequences.length === 2, 'both teams may use the same corner');
   assert(g.board[0][0].locked.includes('red') && g.board[0][0].locked.includes('blue'),
     'corner locked for both teams');
@@ -223,11 +272,8 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
 // dead card: exchange once per turn, then keep playing
 {
   const g = freshGame();
-  const [a, b] = [
-    [0, 1],
-    [8, 6],
-  ] as Array<[number, number]>; // both 2S cells
-  setChips(g, 'blue', [a, b]);
+  const dead1 = positionsFor(g.layout).get('2S')!;
+  setChips(g, 'blue', dead1);
   giveHand(g, 0, ['2S', '3S', '3S']);
   assert(isDeadCard(g, '2S'), 'card with both cells covered is dead');
   const ex = applyMove(g, 'p0', { type: 'exchangeDead', card: '2S' });
@@ -235,10 +281,7 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
   assert(g.players[0].hand.length === 3, 'exchange draws a replacement');
   assert(g.turn === 0, 'turn continues after exchanging');
   // a second exchange the same turn is illegal even if another card is dead
-  setChips(g, 'blue', [
-    [0, 2],
-    [8, 5],
-  ]); // both 3S cells
+  setChips(g, 'blue', positionsFor(g.layout).get('3S')!); // cover both 3S cells
   const ex2 = applyMove(g, 'p0', { type: 'exchangeDead', card: '3S' });
   assert(!ex2.ok, 'only one dead-card exchange per turn');
 }
@@ -247,10 +290,7 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
 // never blocks a pass (per official rules)
 {
   const g = freshGame();
-  setChips(g, 'blue', [
-    [0, 1],
-    [8, 6],
-  ]); // both 2S cells covered -> 2S is dead, no legal move
+  setChips(g, 'blue', positionsFor(g.layout).get('2S')!); // 2S dead -> no legal move
   giveHand(g, 0, ['2S']);
   assert(
     applyMove(g, 'p0', { type: 'pass' }).ok,
@@ -461,8 +501,13 @@ console.log(`  ${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
 
 // ---------- 3. full-game simulations ----------
-function simulate(playerCount: number, teamCount: 2 | 3, strictDraw: boolean): string {
-  const game = freshGame(playerCount, teamCount, strictDraw);
+function simulate(
+  playerCount: number,
+  teamCount: 2 | 3,
+  strictDraw: boolean,
+  randomBoard = false,
+): string {
+  const game = freshGame(playerCount, teamCount, strictDraw, randomBoard);
   let moves = 0;
   while (!game.winner && !game.stalemate && moves < 4000) {
     const current = game.players[game.turn];
@@ -498,7 +543,7 @@ function simulate(playerCount: number, teamCount: 2 | 3, strictDraw: boolean): s
     if (winSeqs < game.required) throw new Error('Winner lacks required sequences');
   }
   const outcome = game.winner ? `${game.winner} wins` : 'stalemate draw';
-  return `${playerCount}p/${teamCount}t${strictDraw ? '/strict' : ''}: ${outcome} in ${moves} moves`;
+  return `${playerCount}p/${teamCount}t${strictDraw ? '/strict' : ''}${randomBoard ? '/shuffled' : ''}: ${outcome} in ${moves} moves`;
 }
 
 /** Play difficulty A (as p0/red) vs B (as p1/blue) for N seeded games; alternate
@@ -537,7 +582,7 @@ function headToHead(
 
 const SIM_COUNT = 60;
 console.log(`\nFull-game simulations (${SIM_COUNT} each, seeded/reproducible):`);
-const configs: Array<[number, 2 | 3, boolean]> = [
+const configs: Array<[number, 2 | 3, boolean, boolean?]> = [
   [2, 2, false],
   [2, 2, true],
   [3, 3, false],
@@ -550,16 +595,20 @@ const configs: Array<[number, 2 | 3, boolean]> = [
   [10, 2, false],
   [12, 2, false],
   [12, 3, true],
+  // shuffled boards must play through cleanly too
+  [2, 2, false, true],
+  [4, 2, false, true],
+  [6, 3, false, true],
 ];
 
 let simFailures = 0;
 for (let ci = 0; ci < configs.length; ci++) {
-  const [pc, tc, strict] = configs[ci];
+  const [pc, tc, strict, rnd] = configs[ci];
   for (let i = 0; i < SIM_COUNT; i++) {
     const seed = 0x100000 * (ci + 1) + i;
     Math.random = mulberry32(seed);
     try {
-      const summary = simulate(pc, tc, strict);
+      const summary = simulate(pc, tc, strict, !!rnd);
       if (i === 0) console.log('OK  ', summary);
     } catch (e) {
       simFailures++;

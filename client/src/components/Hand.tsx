@@ -20,12 +20,12 @@ export default function Hand() {
   const noLegalMoves =
     myTurn &&
     me &&
-    hand.every((card) => legalCellsOnBoard(game.board, me.team, card).length === 0);
+    hand.every((card) => legalCellsOnBoard(game.board, me.team, card, game.layout).length === 0);
   // exchanging a dead card is optional, offer it, but never block the pass
   const canExchange =
     noLegalMoves &&
     !game.deadExchangedThisTurn &&
-    hand.some((card) => isDeadOnBoard(game.board, card));
+    hand.some((card) => isDeadOnBoard(game.board, card, game.layout));
 
   const onDeckClick = () => {
     if (game.settings.strictDraw && game.yourPendingDraws > 0) {
@@ -85,7 +85,7 @@ export default function Hand() {
               return { card, key: `${card}#${occ}` };
             });
           })().map(({ card, key }, i) => {
-            const dead = me ? isDeadOnBoard(game.board, card) : false;
+            const dead = me ? isDeadOnBoard(game.board, card, game.layout) : false;
             const selected = selectedCard === card;
             const mid = (hand.length - 1) / 2;
             const angle = (i - mid) * 3.2;

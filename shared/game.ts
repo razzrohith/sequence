@@ -1,10 +1,11 @@
 import {
   BOARD_LAYOUT,
-  CARD_POSITIONS,
   DIRS,
   SIZE,
   cardAt,
   isCorner,
+  positionsFor,
+  shuffledLayout,
 } from './board';
 import type {
   Card,
@@ -108,6 +109,7 @@ export function createGame(
   settings: GameSettings,
   rng: () => number = Math.random,
 ): GameCore {
+  const layout = settings.randomBoard ? shuffledLayout(rng) : BOARD_LAYOUT;
   const deck = createDeck(rng);
   const handSize = HAND_SIZES[seatedPlayers.length] ?? 6;
   const players: ServerPlayer[] = seatedPlayers.map((p) => ({
@@ -120,6 +122,7 @@ export function createGame(
   }));
   return {
     board: emptyBoard(),
+    layout,
     deck,
     discard: [],
     players,
@@ -152,19 +155,24 @@ export function defaultSettings(partial: Partial<GameSettings> = {}): GameSettin
     botDifficulty: partial.botDifficulty ?? 'medium',
     turnSeconds: partial.turnSeconds ?? 0,
     winSequences: partial.winSequences,
+    randomBoard: partial.randomBoard,
   };
 }
 
 /** A card is dead when it's a non-jack whose two board cells are both occupied. */
-export function isDeadOnBoard(board: CellState[][], card: Card): boolean {
+export function isDeadOnBoard(
+  board: CellState[][],
+  card: Card,
+  layout: string[][] = BOARD_LAYOUT,
+): boolean {
   if (isJack(card)) return false;
-  const positions = CARD_POSITIONS.get(card);
+  const positions = positionsFor(layout).get(card);
   if (!positions) return true; // shouldn't happen
   return positions.every(([r, c]) => board[r][c].chip !== null);
 }
 
 export function isDeadCard(game: GameCore, card: Card): boolean {
-  return isDeadOnBoard(game.board, card);
+  return isDeadOnBoard(game.board, card, game.layout);
 }
 
 /** Cells where `card` can legally be played by `team` (board-only, shared with client UI). */
@@ -172,6 +180,7 @@ export function legalCellsOnBoard(
   board: CellState[][],
   team: Team,
   card: Card,
+  layout: string[][] = BOARD_LAYOUT,
 ): Array<[number, number]> {
   const out: Array<[number, number]> = [];
   if (isTwoEyed(card)) {
@@ -197,7 +206,7 @@ export function legalCellsOnBoard(
     }
     return out;
   }
-  const positions = CARD_POSITIONS.get(card) ?? [];
+  const positions = positionsFor(layout).get(card) ?? [];
   for (const [r, c] of positions) {
     if (board[r][c].chip === null) out.push([r, c]);
   }
@@ -205,7 +214,7 @@ export function legalCellsOnBoard(
 }
 
 export function legalCellsFor(game: GameCore, team: Team, card: Card): Array<[number, number]> {
-  return legalCellsOnBoard(game.board, team, card);
+  return legalCellsOnBoard(game.board, team, card, game.layout);
 }
 
 export function hasAnyLegalMove(game: GameCore, player: ServerPlayer): boolean {
@@ -405,7 +414,7 @@ export function applyMove(game: GameCore, playerId: string, move: Move): ApplyRe
       if (isOneEyed(move.card))
         return { ok: false, error: 'One-eyed jacks remove chips; they cannot place.' };
       if (!isTwoEyed(move.card)) {
-        const matches = (CARD_POSITIONS.get(move.card) ?? []).some(
+        const matches = (positionsFor(game.layout).get(move.card) ?? []).some(
           ([pr, pc]) => pr === r && pc === c,
         );
         if (!matches) return { ok: false, error: 'That card does not match this space.' };
@@ -511,6 +520,7 @@ export function toClientState(game: GameCore, playerId: string): ClientGameState
     secs > 0 && !over && game.turnStartedAt ? game.turnStartedAt + secs * 1000 : null;
   return {
     board: game.board,
+    layout: game.layout,
     players: game.players.map((p) => ({
       id: p.id,
       name: p.name,
@@ -539,13 +549,15 @@ export function toClientState(game: GameCore, playerId: string): ClientGameState
 }
 
 /** Validate the board layout: 48 distinct cards, each appearing exactly twice. */
-export function validateBoardLayout(): { ok: boolean; problems: string[] } {
+export function validateBoardLayout(
+  layout: string[][] = BOARD_LAYOUT,
+): { ok: boolean; problems: string[] } {
   const problems: string[] = [];
   const counts = new Map<string, number>();
   let corners = 0;
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
-      const v = BOARD_LAYOUT[r][c];
+      const v = layout[r][c];
       if (v === 'XX') {
         corners++;
         if (!isCorner(r, c)) problems.push(`wild at non-corner ${r},${c}`);

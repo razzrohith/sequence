@@ -47,6 +47,8 @@ export interface GameSettings {
   turnSeconds: number;
   /** sequences needed to win; omit for the official default (2 teams -> 2, 3 teams -> 1) */
   winSequences?: number;
+  /** deal the 48 faces to random cells instead of the printed board */
+  randomBoard?: boolean;
   /** board theme the host has chosen for the whole room; players may still
    * override it locally in Settings */
   boardTheme?: string;
@@ -79,6 +81,8 @@ export interface MoveEvent {
 
 export interface GameCore {
   board: CellState[][];
+  /** which card is printed on each cell (the official board, or a shuffled one) */
+  layout: string[][];
   deck: Card[];
   discard: Card[];
   players: ServerPlayer[];
@@ -106,6 +110,8 @@ export interface GameCore {
 
 export interface ClientGameState {
   board: CellState[][];
+  /** the card printed on each cell, so the client renders this game's board */
+  layout: string[][];
   players: PublicPlayer[];
   turn: number;
   yourId: string;
