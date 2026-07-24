@@ -36,7 +36,7 @@ function MobileBar({
     !spectating &&
     !over &&
     !!game &&
-    game.settings.hints !== false &&
+    game.settings.hints === true &&
     game.players[game.turn]?.id === game.yourId;
   const last = game?.lastMove;
   const canUndo =

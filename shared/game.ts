@@ -161,7 +161,7 @@ export function defaultSettings(partial: Partial<GameSettings> = {}): GameSettin
     winSequences: partial.winSequences,
     randomBoard: partial.randomBoard,
     undoMode: partial.undoMode ?? 'approval',
-    hints: partial.hints ?? true,
+    hints: partial.hints ?? false,
     firstPlayer: partial.firstPlayer ?? 'first',
     allowDeadExchange: partial.allowDeadExchange ?? true,
     clockSeconds: partial.clockSeconds ?? 0,

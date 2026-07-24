@@ -122,7 +122,7 @@ export function UndoControls() {
   const req = game.undoRequest;
   // hints can be switched off for the room in the lobby
   const canHint =
-    game.settings.hints !== false &&
+    game.settings.hints === true &&
     !game.winner &&
     !game.stalemate &&
     game.players[game.turn]?.id === game.yourId;

@@ -61,7 +61,8 @@ export interface GameSettings {
   password?: string;
   /** chat is visible only to your own team */
   teamChat?: boolean;
-  /** whether the Hint button is available to players in this room */
+  /** whether the Hint button is available in this room; off unless switched on
+   * in the lobby before the game starts */
   hints?: boolean;
   /** how taking back a move works: not at all, straight away, or only when an
    * opponent agrees. A move can only ever be taken back while it is still the

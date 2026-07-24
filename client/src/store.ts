@@ -583,6 +583,9 @@ export const useStore = create<Store>((set, get) => ({
         get()._goHome();
       },
       onJoined: (_code, spectator) => set({ spectating: spectator }),
+      onNotice: (text) => {
+        if (text) get().toast(text, 'info');
+      },
       onClosed: (reason) => {
         get().toast(reason, 'error');
         get()._goHome();
@@ -846,9 +849,16 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   requestHint() {
+    const announceHint = () => {
+      const s2 = get();
+      if (s2.netKind === 'guest') (s2.net as NetGuest).hintUsed();
+      else if (s2.netKind === 'host') (s2.net as NetHost).announceHint(s2.playerId);
+      // on one device everyone is looking at the same screen, so the marker
+      // itself is the announcement
+    };
     const g = get().game;
     if (!g) return;
-    if (g.settings.hints === false) {
+    if (g.settings.hints !== true) {
       get().toast('Hints are turned off for this game.', 'info');
       return;
     }
@@ -875,6 +885,9 @@ export const useStore = create<Store>((set, get) => ({
       connected: true,
     } as unknown as ServerPlayer;
     const move = chooseBotMove(shim, mePlayer, 'hard');
+    // hints are worked out on this device, so the table only learns about one
+    // if we announce it
+    announceHint();
     if (move.type === 'place' || move.type === 'remove') {
       sfx.select();
       set({

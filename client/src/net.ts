@@ -58,6 +58,8 @@ export interface NetHandlers {
   onKicked: () => void;
   onJoined: (code: string, spectator: boolean) => void;
   onClosed: (reason: string) => void;
+  /** a table-wide notice, e.g. that someone took a hint */
+  onNotice: (text: string) => void;
   /** the host left and this client is the heir, become the new host */
   onBecomeHost: (code: string, snap: HostSnapshot) => void;
 }
@@ -341,6 +343,7 @@ export class NetHost {
     else if (t === 'chat') this.chat(from, this.clean(msg.text, 300));
     else if (t === 'emote') this.emote(from, this.clean(msg.emote, 8));
     else if (t === 'ready') this.setReady(from, msg.ready === true);
+    else if (t === 'hint') this.announceHint(from);
     else if (t === 'undoReq') this.requestUndo(from);
     else if (t === 'undoResp') this.respondUndo(from, msg.approve === true);
   }
@@ -686,6 +689,17 @@ export class NetHost {
     this.h.onChat(msg);
     this.pub('b', { t: 'chat', m: msg });
   }
+  /** Hints are computed on each player's own device, so the table only learns
+   * about one if we say so. Everyone is told, including the player who asked. */
+  announceHint(pid: string) {
+    if (this.settings.hints !== true) return;
+    const p = this.players.find((x) => x.id === pid);
+    if (!p) return;
+    const text = `${p.name} took a hint`;
+    this.h.onNotice(text);
+    this.pub('b', { t: 'notice', m: text });
+  }
+
   private setReady(pid: string, ready: boolean) {
     const p = this.players.find((x) => x.id === pid);
     if (!p || this.started) return;
@@ -919,6 +933,7 @@ export class NetGuest {
     else if (t === 'full') this.lastFull = msg.snap as HostSnapshot; // I'm the heir
     else if (t === 'hostgone') this.handleHostGone();
     else if (t === 'closed') this.h.onClosed(String(msg.reason ?? 'The room closed.'));
+    else if (t === 'notice') this.h.onNotice(String(msg.m ?? ''));
   }
 
   /** Host left: if I'm the designated heir (and hold a snapshot), take over as
@@ -957,6 +972,11 @@ export class NetGuest {
       if (this.lastRoom === roomAtGone) this.h.onClosed('The room closed.');
       else this.migrating = false; // a new host took over; carry on
     }, HOST_GONE_GRACE_MS + 9000);
+  }
+
+  /** tell the table this player just took a hint */
+  hintUsed() {
+    this.send({ t: 'hint' });
   }
 
   ready(v: boolean) {

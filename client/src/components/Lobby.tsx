@@ -353,11 +353,11 @@ export default function Lobby() {
             <label className="check">
               <input
                 type="checkbox"
-                checked={room.settings.hints !== false}
+                checked={room.settings.hints === true}
                 onChange={(e) => updateSettings({ hints: e.target.checked })}
               />
               <span>
-                Allow hints <i>(the ✦ Hint button suggests a strong move on your turn)</i>
+                Allow hints <i>(off by default; everyone is told when a player takes one)</i>
               </span>
             </label>
 

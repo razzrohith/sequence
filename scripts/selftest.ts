@@ -576,17 +576,25 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
   assert(cs.requiredByTeam?.blue === 2, 'handicap: the other team keeps the normal target');
 }
 
-// hints are allowed unless the room turns them off
+// hints are off unless the room deliberately switches them on
 {
-  assert(defaultSettings().hints === true, 'hints: allowed by default');
-  assert(defaultSettings({ hints: false }).hints === false, 'hints: can be switched off');
-  const g = createGame(
+  assert(defaultSettings().hints === false, 'hints: off by default');
+  assert(defaultSettings({ hints: true }).hints === true, 'hints: can be switched on');
+  const off = createGame(
     [0, 1].map((i) => ({ id: `p${i}`, name: `P${i}`, isBot: true, team: TEAMS[i % 2] })),
-    defaultSettings({ hints: false }),
+    defaultSettings(),
   );
   assert(
-    toClientState(g, 'p0').settings.hints === false,
-    'hints: the off switch reaches every player through the game state',
+    toClientState(off, 'p0').settings.hints === false,
+    'hints: every player sees them off by default',
+  );
+  const on = createGame(
+    [0, 1].map((i) => ({ id: `p${i}`, name: `P${i}`, isBot: true, team: TEAMS[i % 2] })),
+    defaultSettings({ hints: true }),
+  );
+  assert(
+    toClientState(on, 'p0').settings.hints === true,
+    'hints: the on switch reaches every player through the game state',
   );
 }
 
