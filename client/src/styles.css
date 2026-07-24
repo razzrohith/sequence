@@ -1406,25 +1406,30 @@ body.high-contrast .cf-mid-rank {
     opacity: 0.85;
   }
 }
-/* Hint action button */
+/* Hint action button — floats like .undo-btn so it never affects board layout */
 .hint-btn {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(196px + env(safe-area-inset-bottom));
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
-  padding: 0.5em 1em;
+  padding: 8px 16px;
   border-radius: 999px;
   border: 1px solid rgba(251, 191, 36, 0.55);
-  background: linear-gradient(180deg, rgba(251, 191, 36, 0.22), rgba(251, 191, 36, 0.08));
-  color: #b45309;
-  font-weight: 700;
+  background: rgba(10, 25, 20, 0.9);
+  color: #fcd34d;
+  font-weight: 600;
   font-size: 14px;
   cursor: pointer;
-  transition: transform 0.12s, box-shadow 0.15s, background 0.15s;
+  z-index: 80;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  transition: box-shadow 0.15s, background 0.15s;
 }
 .hint-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 3px 12px rgba(251, 191, 36, 0.35);
-  background: linear-gradient(180deg, rgba(251, 191, 36, 0.32), rgba(251, 191, 36, 0.14));
+  box-shadow: 0 4px 18px rgba(251, 191, 36, 0.4);
+  background: rgba(18, 40, 30, 0.95);
 }
 @keyframes lastspin {
   to {
@@ -2568,7 +2573,8 @@ body.colorblind .chip-star {
   /* phones use the in-flow bottom toolbar; hide desktop floating controls */
   .fab-col,
   .emote-bar,
-  .undo-btn {
+  .undo-btn,
+  .hint-btn {
     display: none !important;
   }
   .mobile-bar {

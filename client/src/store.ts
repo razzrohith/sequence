@@ -271,6 +271,8 @@ interface Store {
   localViewer: string | null;
   handoffName: string | null;
   localBotTimer: number | null;
+  /** snapshot of the local core taken before the last on-device move, for undo */
+  localUndo: string | null;
 
   init: () => void;
   netHandlers: () => NetHandlers;
@@ -340,6 +342,7 @@ export const useStore = create<Store>((set, get) => ({
   savedLocal: loadLocalGame(),
   localCore: null,
   localSeats: [],
+  localUndo: null,
   localViewer: null,
   handoffName: null,
   localBotTimer: null,
@@ -420,8 +423,11 @@ export const useStore = create<Store>((set, get) => ({
     if (over && !wasOver) {
       if (game.winner && myTeam === game.winner) sfx.win();
       else sfx.lose();
-      // record win/loss stats (players only, not spectators; skip pure draws as neither)
-      if (!game.spectator && myTeam) {
+      // Record win/loss stats (players only, not spectators; skip pure draws as
+      // neither). Pass & Play on one device is excluded: the "viewer" is always
+      // whoever just moved, so every finished game would score as a win.
+      const sharedDevice = s.mode === 'local' && s.localSeats.filter((x) => !x.isBot).length > 1;
+      if (!game.spectator && myTeam && !sharedDevice) {
         const won = game.winner === myTeam;
         const st = get().stats;
         const stats: Stats = {
@@ -537,6 +543,7 @@ export const useStore = create<Store>((set, get) => ({
       localViewer: null,
       localBotTimer: null,
       handoffName: null,
+      localUndo: null,
       // an unfinished local game stays resumable from Home
       savedLocal: loadLocalGame(),
     });
@@ -647,9 +654,31 @@ export const useStore = create<Store>((set, get) => ({
     else if (netKind === 'guest') (net as NetGuest).send({ t: 'emote', emote });
   },
   requestUndo() {
-    const { net, netKind } = get();
-    if (netKind === 'host') (net as NetHost).requestUndoLocal();
-    else if (netKind === 'guest') (net as NetGuest).send({ t: 'undoReq' });
+    const s = get();
+    // on-device games take the move back immediately — there's nobody to ask
+    if (s.mode === 'local') {
+      if (!s.localUndo) {
+        get().toast('Nothing to take back.', 'info');
+        return;
+      }
+      if (s.localBotTimer) clearTimeout(s.localBotTimer);
+      const core = JSON.parse(s.localUndo) as GameCore;
+      core.rng = Math.random;
+      set({
+        localCore: core,
+        localUndo: null,
+        localBotTimer: null,
+        hint: null,
+        selectedCard: null,
+        handoffName: null,
+        lastEventSeen: core.eventCounter ?? 0,
+      });
+      get().localTick();
+      get().toast('Move taken back');
+      return;
+    }
+    if (s.netKind === 'host') (s.net as NetHost).requestUndoLocal();
+    else if (s.netKind === 'guest') (s.net as NetGuest).send({ t: 'undoReq' });
   },
   respondUndo(approve) {
     const { net, netKind } = get();
@@ -665,12 +694,15 @@ export const useStore = create<Store>((set, get) => ({
       if (!core || s.handoffName) return;
       const cur = core.players[core.turn];
       if (!cur || cur.isBot || cur.id !== s.localViewer) return;
+      // snapshot before mutating so this move can be taken back on-device
+      const before = JSON.stringify(core);
       const res = applyMove(core, cur.id, move);
       if (!res.ok) {
         sfx.error();
         get().toast(res.error ?? 'Illegal move.', 'error');
         return;
       }
+      set({ localUndo: before });
       get().localTick();
       return;
     }
@@ -754,7 +786,17 @@ export const useStore = create<Store>((set, get) => ({
     if (!saved) return;
     const s = get();
     if (s.localBotTimer) clearTimeout(s.localBotTimer);
+    // a local game must not leave an online transport running
+    if (s.net) {
+      try {
+        s.net.destroy();
+      } catch {
+        /* ignore */
+      }
+    }
     set({
+      net: null,
+      netKind: null,
       mode: 'local',
       localCore: saved.core,
       localSeats: saved.seats,
@@ -764,10 +806,15 @@ export const useStore = create<Store>((set, get) => ({
       room: null,
       chat: [],
       game: null,
-      lastEventSeen: 0,
+      // start from the saved event counter so resuming doesn't replay the whole
+      // move log as a burst of sounds and toasts
+      lastEventSeen: saved.core.eventCounter ?? 0,
       wasMyTurn: false,
       view: 'game',
       savedLocal: null,
+      localUndo: null,
+      hint: null,
+      selectedCard: null,
     });
     get().localTick();
   },
@@ -775,6 +822,14 @@ export const useStore = create<Store>((set, get) => ({
   startLocal(seats) {
     const s = get();
     if (s.localBotTimer) clearTimeout(s.localBotTimer);
+    // a local game must not leave an online transport running
+    if (s.net) {
+      try {
+        s.net.destroy();
+      } catch {
+        /* ignore */
+      }
+    }
     const n = seats.length;
     const teamCount: 2 | 3 = n === 3 ? 3 : 2;
     const core = createGame(
@@ -802,6 +857,7 @@ export const useStore = create<Store>((set, get) => ({
       wasMyTurn: false,
       view: 'game',
       savedLocal: null,
+      localUndo: null,
     });
     get().localTick();
   },

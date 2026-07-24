@@ -126,7 +126,12 @@ export function createGame(
     turn: 0,
     settings,
     sequences: [],
-    required: settings.winSequences ?? (settings.teamCount === 2 ? 2 : 1),
+    // the quick-win override is only offered for 2-team games; clamp it so a
+    // stale value can never survive a switch to 3 teams (or set required to 0)
+    required:
+      settings.teamCount === 2
+        ? Math.min(2, Math.max(1, settings.winSequences ?? 2))
+        : 1,
     winner: null,
     stalemate: false,
     turnsWithoutSequence: 0,
@@ -291,9 +296,12 @@ function advanceTurn(game: GameCore) {
   game.deadExchangedThisTurn = false;
   game.turnStartedAt = Date.now();
   game.turnsWithoutSequence++;
-  // stalemate: with every hand empty nobody can ever play or draw again
-  // (only possible in strict mode after mass forfeits)
-  if (game.players.every((p) => p.hand.length === 0)) {
+  // stalemate: with every hand empty nobody can ever play or draw again.
+  // In strict mode a player keeps a claimable pending draw until the NEXT player
+  // moves, so an owed draw with cards still available means the game isn't dead.
+  const cardsLeft = game.deck.length + game.discard.length > 0;
+  const anyClaimableDraw = game.players.some((p) => (game.pendingDraws[p.id] ?? 0) > 0);
+  if (game.players.every((p) => p.hand.length === 0) && !(cardsLeft && anyClaimableDraw)) {
     game.stalemate = true;
   }
   if (game.turnsWithoutSequence >= DEAD_POSITION_TURNS) {

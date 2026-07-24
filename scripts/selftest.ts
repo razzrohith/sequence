@@ -345,6 +345,37 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
   assert(g.deck.length > 0, 'discard pile became the new deck');
 }
 
+// the quick-win override must never leak into a 3-team game (the lobby only
+// offers it for 2 teams) and must always clamp to a sane 1..2
+{
+  const mk = (teamCount: 2 | 3, winSequences: number, n: number) =>
+    createGame(
+      Array.from({ length: n }, (_, i) => ({
+        id: `p${i}`,
+        name: `P${i}`,
+        isBot: true,
+        team: TEAMS[i % teamCount],
+      })),
+      { teamCount, strictDraw: false, winSequences } as never,
+    );
+  assert(mk(3, 2, 6).required === 1, 'quick-win: override ignored for 3-team games');
+  assert(mk(2, 0, 2).required === 1, 'quick-win: 0 clamps up to 1 (required can never be 0)');
+  assert(mk(2, 9, 2).required === 2, 'quick-win: absurd values clamp down to 2');
+}
+
+// strict draw: an owed draw with cards still available is NOT a dead position
+{
+  const g = freshGame(2, 2, true);
+  giveHand(g, 0, ['7D']);
+  giveHand(g, 1, []);
+  const cell = legalCellsFor(g, 'red', '7D')[0];
+  applyMove(g, 'p0', { type: 'place', card: '7D', r: cell[0], c: cell[1] });
+  assert(g.pendingDraws['p0'] === 1, 'strict: the mover is still owed a draw');
+  assert(!g.stalemate, 'strict: not a stalemate while a draw is still claimable');
+  assert(applyMove(g, 'p0', { type: 'draw' }).ok, 'strict: that owed draw can still be claimed');
+  assert(g.players[0].hand.length === 1, 'strict: claiming the draw refills the hand');
+}
+
 // save & resume: the client checkpoints GameCore through JSON.stringify, so the
 // round-trip must preserve state exactly and the resumed game must keep playing
 {

@@ -29,8 +29,14 @@ function MobileBar({
   const game = useStore((s) => s.game);
   const sendEmote = useStore((s) => s.sendEmote);
   const requestUndo = useStore((s) => s.requestUndo);
+  const requestHint = useStore((s) => s.requestHint);
   const [emoteOpen, setEmoteOpen] = useState(false);
 
+  const myTurn =
+    !spectating &&
+    !over &&
+    !!game &&
+    game.players[game.turn]?.id === game.yourId;
   const last = game?.lastMove;
   const canUndo =
     !spectating &&
@@ -85,6 +91,12 @@ function MobileBar({
             <span className="mb-lbl">Emote</span>
           </button>
         </div>
+      )}
+      {myTurn && (
+        <button className="mb-btn" onClick={requestHint}>
+          <span className="mb-ico">✦</span>
+          <span className="mb-lbl">Hint</span>
+        </button>
       )}
       {canUndo && (
         <button className="mb-btn undo" onClick={requestUndo}>
