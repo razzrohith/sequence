@@ -147,6 +147,42 @@ function prefersReducedMotion(): boolean {
   }
 }
 
+const LOCAL_GAME_KEY = 'seq:localGame';
+
+export interface SavedLocal {
+  core: GameCore;
+  seats: LocalSeat[];
+  viewer: string | null;
+}
+
+/** Persist an in-progress solo / pass-and-play game so a refresh doesn't lose it.
+ * JSON.stringify drops the core's `rng` function; it's restored on load (the deck
+ * order is already fixed in the saved state, so play continues identically). */
+function saveLocalGame(core: GameCore, seats: LocalSeat[], viewer: string | null) {
+  try {
+    if (core.winner || core.stalemate) {
+      LS.remove(LOCAL_GAME_KEY);
+      return;
+    }
+    LS.set(LOCAL_GAME_KEY, JSON.stringify({ core, seats, viewer }));
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadLocalGame(): SavedLocal | null {
+  try {
+    const raw = LS.get(LOCAL_GAME_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as SavedLocal;
+    if (!d?.core?.players?.length || d.core.winner || d.core.stalemate) return null;
+    d.core.rng = Math.random;
+    return d;
+  } catch {
+    return null;
+  }
+}
+
 function loadStats(): Stats {
   try {
     const s = JSON.parse(LS.get('seq:stats') ?? '{}');
@@ -224,6 +260,10 @@ interface Store {
   emotes: FloatingEmote[];
   spectating: boolean;
 
+  /** an in-progress solo/pass-and-play game recovered from a previous session */
+  savedLocal: SavedLocal | null;
+  resumeLocal: () => void;
+
   // local pass-and-play
   localCore: GameCore | null;
   localSeats: LocalSeat[];
@@ -295,6 +335,7 @@ export const useStore = create<Store>((set, get) => ({
   emotes: [],
   spectating: false,
 
+  savedLocal: loadLocalGame(),
   localCore: null,
   localSeats: [],
   localViewer: null,
@@ -693,6 +734,29 @@ export const useStore = create<Store>((set, get) => ({
 
   // ---------- local pass-and-play ----------
 
+  resumeLocal() {
+    const saved = get().savedLocal;
+    if (!saved) return;
+    const s = get();
+    if (s.localBotTimer) clearTimeout(s.localBotTimer);
+    set({
+      mode: 'local',
+      localCore: saved.core,
+      localSeats: saved.seats,
+      localViewer: saved.viewer,
+      handoffName: null,
+      localBotTimer: null,
+      room: null,
+      chat: [],
+      game: null,
+      lastEventSeen: 0,
+      wasMyTurn: false,
+      view: 'game',
+      savedLocal: null,
+    });
+    get().localTick();
+  },
+
   startLocal(seats) {
     const s = get();
     if (s.localBotTimer) clearTimeout(s.localBotTimer);
@@ -722,6 +786,7 @@ export const useStore = create<Store>((set, get) => ({
       lastEventSeen: 0,
       wasMyTurn: false,
       view: 'game',
+      savedLocal: null,
     });
     get().localTick();
   },
@@ -752,6 +817,8 @@ export const useStore = create<Store>((set, get) => ({
       : (s.localViewer ?? core.players.find((p) => !p.isBot)?.id ?? core.players[0].id);
     get().ingestGameState(toClientState(core, viewer));
     set({ handoffName });
+    // checkpoint after every move so a refresh resumes exactly here
+    saveLocalGame(core, s.localSeats, s.localViewer);
 
     if (!over && cur?.isBot && !get().localBotTimer) {
       const timer = window.setTimeout(() => {

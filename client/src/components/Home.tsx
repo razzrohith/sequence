@@ -10,6 +10,8 @@ export default function Home() {
   const setName = useStore((s) => s.setName);
   const createRoom = useStore((s) => s.createRoom);
   const quickPlay = useStore((s) => s.quickPlay);
+  const savedLocal = useStore((s) => s.savedLocal);
+  const resumeLocal = useStore((s) => s.resumeLocal);
   const joinRoom = useStore((s) => s.joinRoom);
   const spectate = useStore((s) => s.spectate);
   const connected = useStore((s) => s.connected);
@@ -69,6 +71,19 @@ export default function Home() {
           <div className="stats-line">
             🏆 {stats.wins}W · {stats.losses}L · {stats.games} games · {winRate}% win rate
           </div>
+        )}
+
+        {savedLocal && (
+          <>
+            <div className="mode-title">Unfinished game</div>
+            <motion.button
+              className="btn btn-primary resume-btn"
+              whileTap={{ scale: 0.96 }}
+              onClick={resumeLocal}
+            >
+              ↻ Resume your game
+            </motion.button>
+          </>
         )}
 
         <div className="mode-title">Play vs computer</div>

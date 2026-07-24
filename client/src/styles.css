@@ -1280,6 +1280,12 @@ body[data-board='ocean'] .board-frame {
   }
 }
 
+/* resume an unfinished solo / pass-and-play game */
+.resume-btn {
+  width: 100%;
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.5), 0 4px 14px rgba(251, 191, 36, 0.25);
+}
+
 /* ---------- accessibility: reduce-motion & high-contrast ---------- */
 body.reduce-motion *,
 body.reduce-motion *::before,
