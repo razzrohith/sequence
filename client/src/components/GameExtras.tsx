@@ -108,10 +108,13 @@ export function UndoControls() {
   const game = useStore((s) => s.game);
   const requestUndo = useStore((s) => s.requestUndo);
   const respondUndo = useStore((s) => s.respondUndo);
+  const requestHint = useStore((s) => s.requestHint);
   const spectating = useStore((s) => s.spectating);
   if (!game || spectating) return null;
 
   const req = game.undoRequest;
+  const myTurn =
+    !game.winner && !game.stalemate && game.players[game.turn]?.id === game.yourId;
   // you may request an undo if you made the most recent move and the game is live
   const canRequest =
     !game.winner &&
@@ -124,6 +127,11 @@ export function UndoControls() {
 
   return (
     <>
+      {myTurn && !req && (
+        <button className="hint-btn" onClick={requestHint} title="Suggest a strong move">
+          ✦ Hint
+        </button>
+      )}
       {canRequest && !req && (
         <button className="undo-btn" onClick={requestUndo} title="Ask to take back your last move">
           ↩ Undo

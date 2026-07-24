@@ -16,6 +16,7 @@ import type {
   GameCore,
   Move,
   RoomInfo,
+  ServerPlayer,
 } from '../../shared/types';
 import { TEAMS } from '../../shared/types';
 import { NetGuest, NetHost, type NetHandlers } from './net';
@@ -193,6 +194,7 @@ interface Store {
   chat: ChatMessage[];
   toasts: Toast[];
   selectedCard: Card | null;
+  hint: { card: Card; r: number; c: number } | null;
   rejoining: boolean;
   lastEventSeen: number;
   wasMyTurn: boolean;
@@ -235,6 +237,7 @@ interface Store {
   requestUndo: () => void;
   respondUndo: (approve: boolean) => void;
   selectCard: (card: Card | null) => void;
+  requestHint: () => void;
   toast: (text: string, kind?: Toast['kind']) => void;
   dismissToast: (id: number) => void;
   ingestGameState: (game: ClientGameState) => void;
@@ -261,6 +264,7 @@ export const useStore = create<Store>((set, get) => ({
   chat: [],
   toasts: [],
   selectedCard: null,
+  hint: null,
   rejoining: false,
   lastEventSeen: 0,
   wasMyTurn: false,
@@ -581,6 +585,7 @@ export const useStore = create<Store>((set, get) => ({
 
   playMove(move) {
     const s = get();
+    if (s.hint) set({ hint: null });
     if (s.mode === 'local') {
       const core = s.localCore;
       if (!core || s.handoffName) return;
@@ -621,7 +626,48 @@ export const useStore = create<Store>((set, get) => ({
 
   selectCard(card) {
     if (card) sfx.select();
-    set({ selectedCard: card });
+    set({ selectedCard: card, hint: null });
+  },
+
+  requestHint() {
+    const g = get().game;
+    if (!g) return;
+    const me = g.players.find((p) => p.id === g.yourId);
+    const myTurn = !g.winner && !g.stalemate && g.players[g.turn]?.id === g.yourId;
+    if (!me || !myTurn) {
+      get().toast('Hints are for your turn.', 'info');
+      return;
+    }
+    // chooseBotMove only reads board/settings/deadExchangedThisTurn + the player's
+    // own hand/team, so a light shim of the client state is enough to score moves.
+    const shim = {
+      board: g.board,
+      settings: g.settings,
+      deadExchangedThisTurn: g.deadExchangedThisTurn,
+    } as unknown as GameCore;
+    const mePlayer = {
+      id: g.yourId,
+      name: me.name,
+      team: me.team,
+      isBot: false,
+      hand: [...g.yourHand],
+      connected: true,
+    } as unknown as ServerPlayer;
+    const move = chooseBotMove(shim, mePlayer, 'hard');
+    if (move.type === 'place' || move.type === 'remove') {
+      sfx.select();
+      set({ selectedCard: move.card, hint: { card: move.card, r: move.r, c: move.c } });
+      get().toast(
+        move.type === 'remove' ? 'Hint: remove the marked chip ✦' : 'Hint: play the marked space ✦',
+        'info',
+      );
+    } else if (move.type === 'exchangeDead') {
+      set({ selectedCard: move.card, hint: null });
+      get().toast('Hint: exchange your dead card', 'info');
+    } else {
+      set({ hint: null });
+      get().toast('No legal move — you can pass.', 'info');
+    }
   },
 
   // ---------- local pass-and-play ----------

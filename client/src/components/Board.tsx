@@ -31,6 +31,7 @@ function ChipRingText({ id }: { id: string }) {
 export default function Board() {
   const game = useStore((s) => s.game);
   const selectedCard = useStore((s) => s.selectedCard);
+  const hint = useStore((s) => s.hint);
   const playMove = useStore((s) => s.playMove);
   const selectCard = useStore((s) => s.selectCard);
 
@@ -144,6 +145,7 @@ export default function Board() {
                 </AnimatePresence>
 
                 {isLast && <div className="last-ring" />}
+                {hint && hint.r === r && hint.c === c && <div className="hint-mark">✦</div>}
               </div>
             );
           }),
