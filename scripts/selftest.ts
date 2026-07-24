@@ -13,10 +13,11 @@ import {
   createGame,
   isDeadCard,
   legalCellsFor,
+  toClientState,
   validateBoardLayout,
 } from '../shared/game';
 import { TEAMS } from '../shared/types';
-import type { Card, GameCore, Team } from '../shared/types';
+import type { Card, GameCore, ServerPlayer, Team } from '../shared/types';
 
 /** Small deterministic PRNG so the gate never flakes and every failure is
  * reproducible from its seed. We drive the global Math.random (used by the deck
@@ -342,6 +343,87 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
   assert(res.ok, 'play still works with empty deck');
   assert(g.players[0].hand.length === 1, 'draw succeeded via reshuffled discard');
   assert(g.deck.length > 0, 'discard pile became the new deck');
+}
+
+// save & resume: the client checkpoints GameCore through JSON.stringify, so the
+// round-trip must preserve state exactly and the resumed game must keep playing
+{
+  const g = freshGame(2, 2);
+  for (let i = 0; i < 30 && !g.winner && !g.stalemate; i++) {
+    const p = g.players[g.turn];
+    applyMove(g, p.id, chooseBotMove(g, p));
+  }
+  const snap = (x: GameCore) =>
+    JSON.stringify({
+      deck: x.deck.length,
+      discard: x.discard.length,
+      hands: x.players.map((p) => p.hand.join(',')),
+      turn: x.turn,
+      seqs: x.sequences.length,
+      chips: x.board.flat().filter((c) => c.chip).length,
+      locked: x.board.flat().reduce((a, c) => a + c.locked.length, 0),
+      log: x.log.length,
+      eventCounter: x.eventCounter,
+      required: x.required,
+      pending: x.pendingDraws,
+    });
+  const before = snap(g);
+  const restored = JSON.parse(JSON.stringify(g)) as GameCore;
+  restored.rng = Math.random; // functions don't survive JSON — the store re-attaches it
+  assert(snap(restored) === before, 'save/resume: state survives the JSON round-trip');
+
+  let illegal = 0;
+  for (let i = 0; i < 200 && !restored.winner && !restored.stalemate; i++) {
+    const p = restored.players[restored.turn];
+    if (!applyMove(restored, p.id, chooseBotMove(restored, p)).ok) illegal++;
+  }
+  assert(illegal === 0, 'save/resume: a resumed game keeps producing legal moves');
+  const totalAfter =
+    restored.deck.length +
+    restored.discard.length +
+    restored.players.reduce((a, p) => a + p.hand.length, 0);
+  assert(totalAfter === 104, 'save/resume: cards still conserved after resuming');
+}
+
+// hint: the client scores moves with a partial GameCore built from ClientGameState
+{
+  const g = freshGame(2, 2);
+  for (let i = 0; i < 20 && !g.winner; i++) {
+    const p = g.players[g.turn];
+    applyMove(g, p.id, chooseBotMove(g, p));
+  }
+  const cs = toClientState(g, 'p0');
+  const me = cs.players.find((p) => p.id === 'p0')!;
+  const shim = {
+    board: cs.board,
+    settings: cs.settings,
+    deadExchangedThisTurn: cs.deadExchangedThisTurn,
+  } as unknown as GameCore;
+  const mePlayer = {
+    id: 'p0',
+    name: me.name,
+    team: me.team,
+    isBot: false,
+    hand: [...cs.yourHand],
+    connected: true,
+  } as unknown as ServerPlayer;
+
+  let move: ReturnType<typeof chooseBotMove> | null = null;
+  let threw = false;
+  try {
+    move = chooseBotMove(shim, mePlayer, 'hard');
+  } catch {
+    threw = true;
+  }
+  assert(!threw && move !== null, 'hint: the client shim does not crash the bot scorer');
+  if (move && (move.type === 'place' || move.type === 'remove')) {
+    const { r, c } = move;
+    assert(
+      legalCellsFor(g, me.team, move.card).some(([rr, cc]) => rr === r && cc === c),
+      'hint: the suggested cell is genuinely legal',
+    );
+    assert(cs.yourHand.includes(move.card), 'hint: the suggested card is genuinely in hand');
+  }
 }
 
 console.log(`  ${passed} passed, ${failed} failed`);
