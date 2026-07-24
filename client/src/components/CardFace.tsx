@@ -14,7 +14,7 @@ export function isRedSuit(card: Card): boolean {
   return card[1] === 'H' || card[1] === 'D';
 }
 
-/** Crisp SVG suit symbols (font glyphs render inconsistently at small sizes) */
+/** Crisp, classic SVG suit symbols (unified shapes — clean at any size). */
 export function SuitIcon({
   suit,
   className,
@@ -27,19 +27,14 @@ export function SuitIcon({
   return (
     <svg viewBox="0 0 24 24" className={`suit-icon ${className ?? ''}`} style={style} aria-hidden>
       {suit === 'H' && (
-        <path d="M12 21.5C5.4 15.2 2.5 11.4 2.5 7.9 2.5 5.2 4.7 3 7.4 3c1.8 0 3.5 1 4.6 2.6C13.1 4 14.8 3 16.6 3c2.7 0 4.9 2.2 4.9 4.9 0 3.5-2.9 7.3-9.5 13.6z" />
+        <path d="M12 21.6l-1.5-1.37C5.1 15.53 1.6 12.35 1.6 8.45 1.6 5.28 4.08 2.8 7.25 2.8c1.79 0 3.51.83 4.75 2.16C13.24 3.63 14.96 2.8 16.75 2.8c3.17 0 5.65 2.48 5.65 5.65 0 3.9-3.5 7.08-8.9 11.79L12 21.6z" />
       )}
-      {suit === 'D' && <path d="M12 1.5 19.3 12 12 22.5 4.7 12z" />}
+      {suit === 'D' && <path d="M12 1.6 20.4 12 12 22.4 3.6 12z" />}
       {suit === 'S' && (
-        <path d="M12 1.5C6.8 7.2 3.2 10.4 3.2 14a4.4 4.4 0 0 0 7.6 3c-.1 2-.9 3.6-2.4 5.5h7.2c-1.5-1.9-2.3-3.5-2.4-5.5a4.4 4.4 0 0 0 7.6-3c0-3.6-3.6-6.8-8.8-12.5z" />
+        <path d="M12 2.2C7.4 7.7 2.9 10.9 2.9 15.05a3.75 3.75 0 0 0 6.35 2.71c.02.02.02.02 0 .04-.28 2.5-1.28 4.3-2.85 5.7H17.6c-1.57-1.4-2.57-3.2-2.85-5.7-.02-.02-.02-.02 0-.04a3.75 3.75 0 0 0 6.35-2.71C21.1 10.9 16.6 7.7 12 2.2z" />
       )}
       {suit === 'C' && (
-        <>
-          <circle cx="12" cy="6.8" r="4.4" />
-          <circle cx="6.2" cy="13.8" r="4.4" />
-          <circle cx="17.8" cy="13.8" r="4.4" />
-          <path d="M10.6 14.5h2.8c-.2 3 .7 5.4 2.2 7.5H8.4c1.5-2.1 2.4-4.5 2.2-7.5z" />
-        </>
+        <path d="M12 2.3a3.72 3.72 0 0 1 3.5 5.02 3.72 3.72 0 1 1 2.36 6.63c-.9 0-1.72-.32-2.36-.85.28 2.63 1.3 4.5 2.9 6.1H5.6c1.6-1.6 2.62-3.47 2.9-6.1-.64.53-1.46.85-2.36.85A3.72 3.72 0 1 1 8.5 7.32 3.72 3.72 0 0 1 12 2.3z" />
       )}
     </svg>
   );
@@ -48,83 +43,85 @@ export function SuitIcon({
 /** Standard playing-card pip positions as [x%, y%] */
 const PIP_LAYOUT: Record<string, Array<[number, number]>> = {
   '2': [
-    [50, 20],
-    [50, 80],
+    [50, 18],
+    [50, 82],
   ],
   '3': [
-    [50, 20],
+    [50, 18],
     [50, 50],
-    [50, 80],
+    [50, 82],
   ],
   '4': [
-    [30, 20],
-    [70, 20],
-    [30, 80],
-    [70, 80],
+    [32, 20],
+    [68, 20],
+    [32, 80],
+    [68, 80],
   ],
   '5': [
-    [30, 20],
-    [70, 20],
+    [32, 20],
+    [68, 20],
     [50, 50],
-    [30, 80],
-    [70, 80],
+    [32, 80],
+    [68, 80],
   ],
   '6': [
-    [30, 20],
-    [70, 20],
-    [30, 50],
-    [70, 50],
-    [30, 80],
-    [70, 80],
+    [32, 20],
+    [68, 20],
+    [32, 50],
+    [68, 50],
+    [32, 80],
+    [68, 80],
   ],
   '7': [
-    [30, 20],
-    [70, 20],
-    [50, 34],
-    [30, 50],
-    [70, 50],
-    [30, 80],
-    [70, 80],
+    [32, 19],
+    [68, 19],
+    [50, 33],
+    [32, 50],
+    [68, 50],
+    [32, 81],
+    [68, 81],
   ],
   '8': [
-    [30, 20],
-    [70, 20],
-    [50, 34],
-    [30, 50],
-    [70, 50],
-    [50, 66],
-    [30, 80],
-    [70, 80],
+    [32, 19],
+    [68, 19],
+    [50, 33],
+    [32, 50],
+    [68, 50],
+    [50, 67],
+    [32, 81],
+    [68, 81],
   ],
   '9': [
-    [30, 18],
-    [70, 18],
-    [30, 39],
-    [70, 39],
+    [32, 18],
+    [68, 18],
+    [32, 39],
+    [68, 39],
     [50, 50],
-    [30, 61],
-    [70, 61],
-    [30, 82],
-    [70, 82],
+    [32, 61],
+    [68, 61],
+    [32, 82],
+    [68, 82],
   ],
   T: [
-    [30, 18],
-    [70, 18],
-    [50, 29],
-    [30, 39],
-    [70, 39],
-    [30, 61],
-    [70, 61],
-    [50, 71],
-    [30, 82],
-    [70, 82],
+    [32, 17],
+    [68, 17],
+    [50, 28],
+    [32, 39],
+    [68, 39],
+    [32, 61],
+    [68, 61],
+    [50, 72],
+    [32, 83],
+    [68, 83],
   ],
 };
 
+const COURT_MOTIF: Record<string, string> = { J: '♞', Q: '♛', K: '♚' };
+
 /**
- * A realistic playing-card face: proper pip patterns for number cards,
- * framed "artwork" for court cards, big center pip for aces.
- * variant "cell" = mini card on the board, "hand" = full card in hand.
+ * A premium, classic playing-card face: crisp pips for number cards, an
+ * ornamental Ace, and a richly-framed court card. variant "cell" = mini card on
+ * the board, "hand" = full card in hand.
  */
 export default function CardFace({
   card,
@@ -149,13 +146,22 @@ export default function CardFace({
 
       {rank === 'A' ? (
         <div className="cf-center">
-          <SuitIcon suit={suit} className="cf-ace" />
+          <div className="cf-ace-wrap">
+            <SuitIcon suit={suit} className="cf-ace" />
+          </div>
         </div>
       ) : court ? (
         <div className="cf-center">
-          <div className="cf-court">
+          <div className={`cf-court ${red ? 'red' : 'black'}`}>
+            <span className="cf-court-corner tl">
+              <SuitIcon suit={suit} className="cf-court-pip" />
+            </span>
+            <span className="cf-court-motif">{COURT_MOTIF[rank]}</span>
             <span className="cf-court-letter">{label}</span>
             <SuitIcon suit={suit} className="cf-court-suit" />
+            <span className="cf-court-corner br">
+              <SuitIcon suit={suit} className="cf-court-pip" />
+            </span>
             {rank === 'J' && (
               <span className={`cf-jack-tag ${oneEyed ? 'cut' : 'wild'}`}>
                 {oneEyed ? '⊘' : '★'}
