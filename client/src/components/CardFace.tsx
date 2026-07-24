@@ -40,88 +40,11 @@ export function SuitIcon({
   );
 }
 
-/** Standard playing-card pip positions as [x%, y%] */
-const PIP_LAYOUT: Record<string, Array<[number, number]>> = {
-  '2': [
-    [50, 18],
-    [50, 82],
-  ],
-  '3': [
-    [50, 18],
-    [50, 50],
-    [50, 82],
-  ],
-  '4': [
-    [32, 20],
-    [68, 20],
-    [32, 80],
-    [68, 80],
-  ],
-  '5': [
-    [32, 20],
-    [68, 20],
-    [50, 50],
-    [32, 80],
-    [68, 80],
-  ],
-  '6': [
-    [32, 20],
-    [68, 20],
-    [32, 50],
-    [68, 50],
-    [32, 80],
-    [68, 80],
-  ],
-  '7': [
-    [32, 19],
-    [68, 19],
-    [50, 33],
-    [32, 50],
-    [68, 50],
-    [32, 81],
-    [68, 81],
-  ],
-  '8': [
-    [32, 19],
-    [68, 19],
-    [50, 33],
-    [32, 50],
-    [68, 50],
-    [50, 67],
-    [32, 81],
-    [68, 81],
-  ],
-  '9': [
-    [32, 18],
-    [68, 18],
-    [32, 39],
-    [68, 39],
-    [50, 50],
-    [32, 61],
-    [68, 61],
-    [32, 82],
-    [68, 82],
-  ],
-  T: [
-    [32, 17],
-    [68, 17],
-    [50, 28],
-    [32, 39],
-    [68, 39],
-    [32, 61],
-    [68, 61],
-    [50, 72],
-    [32, 83],
-    [68, 83],
-  ],
-};
-
-const COURT_MOTIF: Record<string, string> = { J: '♞', Q: '♛', K: '♚' };
-
 /**
- * A premium, classic playing-card face: crisp pips for number cards, an
- * ornamental Ace, and a richly-framed court card. variant "cell" = mini card on
- * the board, "hand" = full card in hand.
+ * A clean, modern card face: a bold display-serif rank with a large suit over a
+ * softly suit-tinted stock and a big watermark suit bleeding from the corner.
+ * Reads instantly at board-cell size; richer with corner indices in the hand.
+ * variant "cell" = mini card on the board, "hand" = full card in hand.
  */
 export default function CardFace({
   card,
@@ -134,58 +57,36 @@ export default function CardFace({
   const rank = card[0];
   const label = rankLabel(card);
   const red = isRedSuit(card);
-  const court = rank === 'J' || rank === 'Q' || rank === 'K';
+  const isJack = rank === 'J';
   const oneEyed = card === 'JS' || card === 'JH';
 
   return (
-    <div className={`cardface v-${variant} ${red ? 'red' : 'black'}`}>
-      <div className="cf-corner tl">
-        <span className="cf-rank">{label}</span>
-        <SuitIcon suit={suit} className="cf-suit" />
+    <div className={`cardface v-${variant} suit-${suit} ${red ? 'red' : 'black'}`}>
+      <SuitIcon suit={suit} className="cf-bg-suit" />
+
+      <div className="cf-main">
+        <span className="cf-main-rank">{label}</span>
+        <SuitIcon suit={suit} className="cf-main-suit" />
       </div>
 
-      {rank === 'A' ? (
-        <div className="cf-center">
-          <div className="cf-ace-wrap">
-            <SuitIcon suit={suit} className="cf-ace" />
-          </div>
-        </div>
-      ) : court ? (
-        <div className="cf-center">
-          <div className={`cf-court ${red ? 'red' : 'black'}`}>
-            <span className="cf-court-corner tl">
-              <SuitIcon suit={suit} className="cf-court-pip" />
-            </span>
-            <span className="cf-court-motif">{COURT_MOTIF[rank]}</span>
-            <span className="cf-court-letter">{label}</span>
-            <SuitIcon suit={suit} className="cf-court-suit" />
-            <span className="cf-court-corner br">
-              <SuitIcon suit={suit} className="cf-court-pip" />
-            </span>
-            {rank === 'J' && (
-              <span className={`cf-jack-tag ${oneEyed ? 'cut' : 'wild'}`}>
-                {oneEyed ? '⊘' : '★'}
-              </span>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="cf-pips">
-          {(PIP_LAYOUT[rank] ?? []).map(([x, y], i) => (
-            <SuitIcon
-              key={i}
-              suit={suit}
-              className={`pip ${y > 50 ? 'flip' : ''}`}
-              style={{ left: `${x}%`, top: `${y}%` }}
-            />
-          ))}
-        </div>
+      {variant === 'hand' && (
+        <>
+          <span className="cf-idx tl">
+            <b>{label}</b>
+            <SuitIcon suit={suit} />
+          </span>
+          <span className="cf-idx br">
+            <b>{label}</b>
+            <SuitIcon suit={suit} />
+          </span>
+        </>
       )}
 
-      <div className="cf-corner br">
-        <span className="cf-rank">{label}</span>
-        <SuitIcon suit={suit} className="cf-suit" />
-      </div>
+      {isJack && (
+        <span className={`cf-jack-tag ${oneEyed ? 'cut' : 'wild'}`}>
+          {oneEyed ? 'REMOVE' : 'WILD'}
+        </span>
+      )}
     </div>
   );
 }
