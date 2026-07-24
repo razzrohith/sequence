@@ -367,6 +367,40 @@ function simulate(playerCount: number, teamCount: 2 | 3, strictDraw: boolean): s
   return `${playerCount}p/${teamCount}t${strictDraw ? '/strict' : ''}: ${outcome} in ${moves} moves`;
 }
 
+/** Play difficulty A (as p0/red) vs B (as p1/blue) for N seeded games; alternate
+ * who moves first to cancel the first-move advantage. Returns each side's wins. */
+function headToHead(
+  diffA: 'easy' | 'medium' | 'hard',
+  diffB: 'easy' | 'medium' | 'hard',
+  games: number,
+): { a: number; b: number; draws: number } {
+  let a = 0;
+  let b = 0;
+  let draws = 0;
+  for (let i = 0; i < games; i++) {
+    Math.random = mulberry32(0xa11ce * (i + 7));
+    const aIsRed = i % 2 === 0; // alternate the first mover
+    const g = freshGame(2, 2);
+    let moves = 0;
+    while (!g.winner && !g.stalemate && moves < 4000) {
+      const cur = g.players[g.turn];
+      const isA = (cur.team === 'red') === aIsRed;
+      const mv = chooseBotMove(g, cur, isA ? diffA : diffB);
+      if (!applyMove(g, cur.id, mv).ok) {
+        const dead = cur.hand.find((c) => isDeadCard(g, c));
+        if (!(dead && applyMove(g, cur.id, { type: 'exchangeDead', card: dead }).ok))
+          applyMove(g, cur.id, { type: 'pass' });
+      }
+      moves++;
+    }
+    const winnerIsA = g.winner ? (g.winner === 'red') === aIsRed : null;
+    if (winnerIsA === true) a++;
+    else if (winnerIsA === false) b++;
+    else draws++;
+  }
+  return { a, b, draws };
+}
+
 const SIM_COUNT = 60;
 console.log(`\nFull-game simulations (${SIM_COUNT} each, seeded/reproducible):`);
 const configs: Array<[number, 2 | 3, boolean]> = [
@@ -400,6 +434,25 @@ for (let ci = 0; ci < configs.length; ci++) {
     }
   }
 }
+// bot strength: stronger tiers must beat weaker ones over a seeded match set
+console.log('\nBot strength (head-to-head, 80 games each):');
+const hE = headToHead('hard', 'easy', 80);
+const mE = headToHead('medium', 'easy', 80);
+const hM = headToHead('hard', 'medium', 80);
+const pct = (r: { a: number; b: number; draws: number }) =>
+  `${Math.round((r.a / (r.a + r.b || 1)) * 100)}% (${r.a}-${r.b}${r.draws ? `, ${r.draws} draw` : ''})`;
+console.log(`  hard vs easy:   ${pct(hE)}`);
+console.log(`  medium vs easy: ${pct(mE)}`);
+console.log(`  hard vs medium: ${pct(hM)}`);
+if (hE.a <= hE.b) {
+  console.error('  FAIL: hard does not beat easy');
+  simFailures++;
+}
+if (mE.a <= mE.b) {
+  console.error('  FAIL: medium does not beat easy');
+  simFailures++;
+}
+
 Math.random = ORIG_RANDOM;
 
 if (simFailures) {
