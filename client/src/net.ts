@@ -132,6 +132,7 @@ export class NetHost {
   private brokerIdx = 0;
 
   private seeded = false;
+  private seededFailed = false;
 
   constructor(
     hostId: string,
@@ -237,7 +238,19 @@ export class NetHost {
       this.onData(msg);
     });
     this.client.on('error', () => {
-      if (!this.opened) failover();
+      if (this.opened) return;
+      // A migrated (seeded) host is pinned to the broker encoded in its room
+      // code's first letter — guests resolve the broker from that letter alone.
+      // Switching brokers here would keep the code but move the host, silently
+      // orphaning every guest, so surface the failure instead of failing over.
+      if (this.seeded) {
+        if (!this.seededFailed) {
+          this.seededFailed = true;
+          this.h.onError('Lost the game network. Please start a new room.');
+        }
+        return;
+      }
+      failover();
     });
   }
 
@@ -678,6 +691,16 @@ export class NetGuest {
   private lastRoom: RoomInfo | null = null;
   private lastFull: HostSnapshot | null = null;
   private migrating = false;
+  /** every pending timer, so destroy() can't leave one to fire into a later room */
+  private timers: Array<ReturnType<typeof setTimeout>> = [];
+
+  private later(fn: () => void, ms: number) {
+    this.timers.push(setTimeout(fn, ms));
+  }
+  private clearTimers() {
+    for (const t of this.timers) clearTimeout(t);
+    this.timers = [];
+  }
 
   constructor(
     code: string,
@@ -722,9 +745,9 @@ export class NetGuest {
       if (!this.settled) this.h.onError('Could not reach the game network. Try again.');
     });
     // resend hello a couple times in case the host was mid-subscribe, then give up
-    setTimeout(() => !this.settled && this.hello(), 1500);
-    setTimeout(() => !this.settled && this.hello(), 4000);
-    setTimeout(() => {
+    this.later(() => !this.settled && this.hello(), 1500);
+    this.later(() => !this.settled && this.hello(), 4000);
+    this.later(() => {
       if (!this.settled) this.h.onError('Room not found. Check the code.');
     }, 11000);
   }
@@ -785,7 +808,7 @@ export class NetGuest {
     // not the heir (or no snapshot): the heir should promote and re-broadcast.
     // If nothing arrives soon, the room is gone.
     const roomAtGone = this.lastRoom;
-    setTimeout(() => {
+    this.later(() => {
       if (this.lastRoom === roomAtGone) this.h.onClosed('The room closed.');
       else this.migrating = false; // a new host took over; carry on
     }, 9000);
@@ -802,6 +825,10 @@ export class NetGuest {
   }
   destroy() {
     this.send({ t: 'bye' });
+    // drop pending retries/timeouts first — otherwise a stale "Room not found"
+    // or "The room closed" can fire later and evict the user from another room
+    this.clearTimers();
+    this.settled = true;
     setTimeout(() => {
       try {
         this.client.end(true);
