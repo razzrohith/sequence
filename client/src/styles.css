@@ -1061,7 +1061,11 @@ input:focus {
 /* ---------- board ---------- */
 
 .board-frame {
-  --board-size: min(calc(100vh - 300px), calc(100vw - 580px), 680px);
+  /* Cells are real card shape (5:7), so the board is 1.4x taller than it is wide,
+     like the physical Sequence board. --board-size is the board WIDTH; every cell
+     is one tenth of it, and all card typography scales from that. */
+  --card-ar: 1.4;
+  --board-size: min(calc(100vw - 580px), calc((100vh - 300px) / 1.55), 560px);
   /* board frame color — overridden per theme via body[data-board] */
   --frame-bg: linear-gradient(165deg, #d3d6d4 0%, #bdc1bf 45%, #c9cdcb 70%, #b3b7b5 100%);
   --frame-ink: rgba(255, 255, 255, 0.92);
@@ -1139,7 +1143,7 @@ body[data-board='ocean'] .board-frame {
 .board {
   position: relative;
   width: var(--board-size);
-  height: var(--board-size);
+  height: calc(var(--board-size) * var(--card-ar));
   display: grid;
   grid-template-columns: repeat(10, 1fr);
   grid-template-rows: repeat(10, 1fr);
@@ -1159,7 +1163,8 @@ body[data-board='ocean'] .board-frame {
 .cell {
   position: relative;
   background: #fdfdfb;
-  border-radius: 14%;
+  /* a % radius would go elliptical on a non-square cell — scale from cell width */
+  border-radius: calc(var(--board-size) / 10 * 0.1);
   cursor: default;
   overflow: hidden;
   transition: transform 0.12s, box-shadow 0.15s;
@@ -1170,7 +1175,7 @@ body[data-board='ocean'] .board-frame {
 .corner-blank {
   position: absolute;
   inset: 0;
-  border-radius: 13%;
+  border-radius: calc(var(--board-size) / 10 * 0.1);
   background: linear-gradient(158deg, #ece2cb 0%, #e2d6b8 100%);
   display: flex;
   align-items: center;
@@ -1355,8 +1360,13 @@ body.high-contrast .cf-mid-rank {
 }
 
 .chip {
+  /* inset:0 + margin:auto centres a fixed-aspect circle without a transform,
+     leaving transform free for the framer-motion drop animation */
   position: absolute;
-  inset: 9%;
+  inset: 0;
+  width: 78%;
+  aspect-ratio: 1;
+  margin: auto;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1412,7 +1422,10 @@ body.high-contrast .cf-mid-rank {
 }
 .last-ring {
   position: absolute;
-  inset: 6%;
+  inset: 0;
+  width: 84%;
+  aspect-ratio: 1;
+  margin: auto;
   border-radius: 50%;
   border: 2px dashed rgba(255, 255, 255, 0.75);
   animation: lastspin 5s linear infinite;
@@ -2248,10 +2261,10 @@ body.colorblind .chip-star {
 
 /* ===== BOARD — vintage aged-paper deck with real court art ===== */
 .cardface.v-cell {
-  border-radius: 13%;
+  border-radius: calc(var(--board-size) / 10 * 0.1);
   background: linear-gradient(158deg, #ece2cb 0%, #e2d6b8 100%);
-  /* bigger than the plain cell font so ranks/indices read clearly */
-  font-size: max(calc(var(--board-size) / 10 * 0.2), 9px);
+  /* scales from cell WIDTH so a tall cell never inflates the type */
+  font-size: max(calc(var(--board-size) / 10 * 0.19), 8px);
 }
 .cardface.v-cell.red {
   color: #b0142b;
@@ -2264,15 +2277,16 @@ body.colorblind .chip-star {
   position: absolute;
   inset: 0;
   z-index: 3;
-  border-radius: 13%;
+  border-radius: calc(var(--board-size) / 10 * 0.1);
   pointer-events: none;
   box-shadow: inset 0 0 0 1px rgba(60, 40, 10, 0.3);
 }
 .cf-frame::before {
   content: '';
   position: absolute;
-  inset: 6%;
-  border-radius: 8%;
+  /* a % inset would differ horizontally vs vertically on a tall cell */
+  inset: calc(var(--board-size) / 10 * 0.07);
+  border-radius: calc(var(--board-size) / 10 * 0.06);
   border: 1px solid rgba(150, 120, 45, 0.5);
 }
 /* real single-figure court illustration */
@@ -2282,7 +2296,7 @@ body.colorblind .chip-star {
   z-index: 1;
   background-size: cover;
   background-position: center;
-  border-radius: 13%;
+  border-radius: calc(var(--board-size) / 10 * 0.1);
 }
 /* big, legible corner indices */
 .cf-cx {
@@ -2340,25 +2354,24 @@ body.colorblind .chip-star {
 .cf-mid-rank {
   font-family: Georgia, 'Times New Roman', serif;
   font-weight: 800;
-  font-size: 2em;
-  letter-spacing: -0.02em;
+  /* kept well under the cell width so wide labels like "10" never crowd the card */
+  font-size: 1.5em;
+  letter-spacing: -0.03em;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 .cf-mid-suit {
-  width: 0.9em;
-  height: 0.9em;
-  margin-top: 0.1em;
+  width: 0.72em;
+  height: 0.72em;
+  margin-top: 0.14em;
 }
 .cf-wm {
   position: absolute;
   z-index: 0;
-  width: 58%;
-  height: 58%;
+  width: 52%;
   opacity: 0.08;
 }
 .cf-ace {
-  width: 46%;
-  height: 46%;
+  width: 42%;
   z-index: 1;
 }
 
@@ -2598,7 +2611,7 @@ body.colorblind .chip-star {
     display: none;
   }
   .board-frame {
-    --board-size: min(calc(100vh - 300px), calc(100vw - 320px), 640px);
+    --board-size: min(calc(100vw - 320px), calc((100vh - 300px) / 1.55), 520px);
   }
 }
 
@@ -2748,7 +2761,7 @@ body.colorblind .chip-star {
   .board-frame {
     /* height budget accounts for header + strip + hand + toolbar + gaps + frame
        padding, so the board is height-limited (never overflows) on short phones */
-    --board-size: min(calc(100vw - 42px), calc(100dvh - 358px));
+    --board-size: min(calc(100vw - 42px), calc((100dvh - 358px) / 1.55));
     padding: calc(var(--board-size) * 0.03);
     align-self: center;
   }
