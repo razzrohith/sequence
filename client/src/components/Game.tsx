@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
 import type { Team } from '../../../shared/types';
-import { isMuted, setMuted } from '../sounds';
 import { EMOTES, useStore } from '../store';
 import Board from './Board';
 import Chat from './Chat';
@@ -153,29 +152,31 @@ export default function Game() {
   const mode = useStore((s) => s.mode);
   const spectating = useStore((s) => s.spectating);
   const setPref = useStore((s) => s.setPref);
+  // single source of truth: the header button and the Settings toggle both read
+  // prefs.sound, so they can never disagree
+  const muted = !useStore((s) => s.prefs.sound);
   const handoffName = useStore((s) => s.handoffName);
   const confirmHandoff = useStore((s) => s.confirmHandoff);
   const leaveRoom = useStore((s) => s.leaveRoom);
   const [showRules, setShowRules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [muted, setMutedState] = useState(isMuted());
   const [sheet, setSheet] = useState<'chat' | 'players' | null>(null);
-  const [chatSeen, setChatSeen] = useState(0);
+  // track the newest message actually seen by time, not by count: the chat list
+  // is capped at 100 so lengths saturate and a count-based badge sticks at 0
+  const [chatSeenTs, setChatSeenTs] = useState(0);
 
   if (!game) return null;
   const current = game.players[game.turn];
   const over = !!game.winner || game.stalemate;
   const myTurn = !over && current?.id === game.yourId && !spectating;
-  const unread = sheet === 'chat' ? 0 : chat.length - chatSeen;
+  const unread = sheet === 'chat' ? 0 : chat.filter((m) => m.ts > chatSeenTs).length;
 
   const toggleMute = () => {
-    setMuted(!muted);
-    setMutedState(!muted);
-    setPref('sound', muted); // muted was old value; new sound = old muted
+    setPref('sound', muted); // muted is the old value, so new sound = old muted
   };
 
   const openSheet = (which: 'chat' | 'players') => {
-    if (which === 'chat') setChatSeen(chat.length);
+    if (which === 'chat') setChatSeenTs(chat.length ? chat[chat.length - 1].ts : Date.now());
     setSheet(which);
   };
 

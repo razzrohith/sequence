@@ -14,7 +14,9 @@ function Recap() {
   const chipsOnBoard = (t: Team) =>
     game.board.flat().filter((c) => c.chip === t).length;
   const seqs = (t: Team) => game.sequences.filter((s) => s.team === t).length;
-  const placements = game.log.filter((e) => e.kind === 'place').length;
+  // NB: game.log is truncated to the last 20 events, so it can't be counted for
+  // a whole-game total — read the board instead, which is always complete.
+  const chipsPlaced = game.board.flat().filter((c) => c.chip).length;
 
   return (
     <div className="recap">
@@ -29,7 +31,7 @@ function Recap() {
           </div>
         ))}
       </div>
-      <div className="recap-foot">{placements} chips played this game</div>
+      <div className="recap-foot">{chipsPlaced} chips on the board</div>
     </div>
   );
 }
