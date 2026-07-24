@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { isDeadOnBoard, isJack, isOneEyed, isTwoEyed, legalCellsOnBoard } from '../../../shared/game';
+import { isDeadOnBoard, isJack, legalCellsOnBoard } from '../../../shared/game';
 import type { Card } from '../../../shared/types';
 import { sfx } from '../sounds';
 import { useStore } from '../store';
@@ -109,8 +109,6 @@ export default function Hand() {
               >
                 <CardFace card={card} />
                 {dead && <span className="dead-badge">DEAD</span>}
-                {isTwoEyed(card) && <span className="jack-badge wild">WILD</span>}
-                {isOneEyed(card) && <span className="jack-badge cut">CUT</span>}
                 {selected && dead && !isJack(card) && !game.deadExchangedThisTurn && myTurn && (
                   <button
                     className="exchange-btn"

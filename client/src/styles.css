@@ -1170,14 +1170,16 @@ body[data-board='ocean'] .board-frame {
 .corner-blank {
   position: absolute;
   inset: 0;
-  background: #fdfdfb;
+  border-radius: 13%;
+  background: linear-gradient(158deg, #ece2cb 0%, #e2d6b8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 0 1px rgba(60, 40, 10, 0.28);
 }
-.corner-blank::after {
-  content: '';
-  position: absolute;
-  inset: 16%;
-  border-radius: 50%;
-  border: 2px dashed rgba(0, 0, 0, 0.09);
+.corner-emblem {
+  width: 84%;
+  height: 84%;
 }
 
 .cell.legal {
@@ -2004,18 +2006,38 @@ body.colorblind .chip-star {
   margin-top: 0.08em;
 }
 
-/* jacks aren't on the board — flag their power clearly in hand */
+/* jacks are the wild/remove cards — show a joker + one/two-eyed power in hand */
+.jester {
+  display: block;
+  fill: currentColor;
+}
+.cf-jack-main .jester {
+  width: 3em;
+  height: auto;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15));
+}
 .cf-jack-tag {
   position: absolute;
-  bottom: 7%;
+  bottom: 6%;
   left: 50%;
   transform: translateX(-50%);
   z-index: 3;
-  font-size: 0.5em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.02;
   font-weight: 800;
+  padding: 0.22em 0.55em;
+  border-radius: 0.8em;
+}
+.cf-jack-tag .jt-eye {
+  font-size: 0.4em;
   letter-spacing: 0.12em;
-  padding: 0.2em 0.6em;
-  border-radius: 999px;
+  opacity: 0.92;
+}
+.cf-jack-tag .jt-pow {
+  font-size: 0.56em;
+  letter-spacing: 0.14em;
 }
 .cf-jack-tag.wild {
   background: #15803d;

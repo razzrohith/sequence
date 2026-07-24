@@ -4,7 +4,7 @@ import { BOARD_LAYOUT, isCorner } from '../../../shared/board';
 import { isOneEyed, legalCellsOnBoard } from '../../../shared/game';
 import type { Team } from '../../../shared/types';
 import { useStore } from '../store';
-import CardFace from './CardFace';
+import CardFace, { CornerEmblem } from './CardFace';
 
 /** Distinct per-team symbol shown on chips in colorblind mode. */
 const CB_GLYPH: Record<Team, string> = { red: '●', blue: '◆', green: '▲' };
@@ -98,7 +98,9 @@ export default function Board() {
                 onClick={() => onCellClick(r, c)}
               >
                 {corner ? (
-                  <div className="corner-blank" />
+                  <div className="corner-blank">
+                    <CornerEmblem />
+                  </div>
                 ) : (
                   <CardFace card={code} variant="cell" />
                 )}
