@@ -103,6 +103,9 @@ export default function Board() {
   };
 
   return (
+    // .board-area is the measuring box: the board sizes itself from whatever
+    // space is left over, so no layout needs a hardcoded chrome budget
+    <div className="board-area">
     <div className={`board-frame ${myTurn ? 'your-turn' : ''} ${game.winner ? 'won' : ''}`}>
       <span className="bf-word left">SEQUENCE</span>
       <span className="bf-word right">SEQUENCE</span>
@@ -182,6 +185,7 @@ export default function Board() {
           }),
         )}
       </div>
+    </div>
     </div>
   );
 }

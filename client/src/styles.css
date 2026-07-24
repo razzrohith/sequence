@@ -1060,11 +1060,28 @@ input:focus {
 
 /* ---------- board ---------- */
 
+/* The board's measuring box. Everything else in the column (header, strip, hand,
+   toolbar) takes its natural height and this soaks up the rest, so the board is
+   always as large as the leftover space allows and never overflows it. */
+.board-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .board-frame {
   /* Cells are real card shape (5:7), so the board is 1.4x taller than it is wide,
      like the physical Sequence board. --board-size is the board WIDTH; every cell
      is one tenth of it, and all card typography scales from that. */
   --card-ar: 1.4;
+  /* frame padding is 6.2% wide / 5.2% tall of the board width */
+  --fit-w: 0.889;
+  --fit-h: 0.665;
+  /* fallback for browsers without container queries */
   --board-size: min(calc(100vw - 580px), calc((100vh - 300px) / 1.55), 560px);
   /* board frame color, overridden per theme via body[data-board] */
   --frame-bg: linear-gradient(165deg, #d3d6d4 0%, #bdc1bf 45%, #c9cdcb 70%, #b3b7b5 100%);
@@ -1140,6 +1157,26 @@ body[data-board='ocean'] .board-frame {
 .bf-oval.bottom {
   bottom: calc(var(--board-size) * 0.012);
 }
+/* Where supported, measure the actual leftover box instead of guessing from the
+   viewport. 0.104 of the width is the frame's own padding, so the board plus its
+   frame always fits the container exactly, at any screen size. */
+@supports (container-type: size) {
+  .board-area {
+    container-type: size;
+  }
+  /* --fit-w / --fit-h convert the container's box into a board WIDTH, allowing
+     for the frame's own padding on each axis (they are 1/(1+2*padding) and
+     1/(cardAspect+2*padding)). Multiplication is used rather than division so a
+     custom property can be the operand. */
+  .board-frame {
+    --board-size: min(
+      calc(100cqw * var(--fit-w)),
+      calc(100cqh * var(--fit-h)),
+      560px
+    );
+  }
+}
+
 .board {
   position: relative;
   width: var(--board-size);
@@ -1486,6 +1523,7 @@ body.high-contrast .cf-mid-rank {
 /* ---------- hand ---------- */
 
 .hand-area {
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: 150px 1fr 150px;
   align-items: center;
@@ -2443,6 +2481,7 @@ body.colorblind .chip-star {
 /* ---------- mobile chrome: strip, FABs, bottom sheets ---------- */
 
 .mobile-strip {
+  flex: 0 0 auto;
   display: none;
   width: 100%;
   align-items: center;
@@ -2604,6 +2643,11 @@ body.colorblind .chip-star {
 /* ---------- responsive ---------- */
 
 @media (max-width: 1150px) {
+  @supports not (container-type: size) {
+    .board-frame {
+      --board-size: min(calc(100vw - 320px), calc((100vh - 300px) / 1.55), 520px);
+    }
+  }
   .game-main {
     grid-template-columns: 210px 1fr;
   }
@@ -2611,7 +2655,7 @@ body.colorblind .chip-star {
     display: none;
   }
   .board-frame {
-    --board-size: min(calc(100vw - 320px), calc((100vh - 300px) / 1.55), 520px);
+
   }
 }
 
@@ -2620,8 +2664,8 @@ body.colorblind .chip-star {
   .game-main {
     display: flex;
     flex-direction: column;
-    padding: 8px 8px 0;
-    gap: 6px;
+    padding: 6px 6px 0;
+    gap: 4px;
   }
   .game-side {
     display: none;
@@ -2758,10 +2802,16 @@ body.colorblind .chip-star {
     padding: 6px 8px;
   }
 
+  @supports not (container-type: size) {
+    .board-frame {
+      /* only used where container queries are unavailable: estimate the chrome */
+      --board-size: min(calc(100vw - 42px), calc((100dvh - 358px) / 1.55));
+    }
+  }
   .board-frame {
-    /* height budget accounts for header + strip + hand + toolbar + gaps + frame
-       padding, so the board is height-limited (never overflows) on short phones */
-    --board-size: min(calc(100vw - 42px), calc((100dvh - 358px) / 1.55));
+    /* phone frame padding is 3% on every side */
+    --fit-w: 0.943;
+    --fit-h: 0.685;
     padding: calc(var(--board-size) * 0.03);
     align-self: center;
   }
@@ -2773,7 +2823,7 @@ body.colorblind .chip-star {
     grid-template-columns: 54px 1fr;
     gap: 8px;
     max-width: 100%;
-    padding: 0 6px calc(8px + env(safe-area-inset-bottom));
+    padding: 0 6px calc(4px + env(safe-area-inset-bottom));
   }
   .pile-zone {
     flex-direction: column;
@@ -2791,20 +2841,20 @@ body.colorblind .chip-star {
     padding: 1px 6px;
   }
   .hand {
-    min-height: 100px;
-    padding-top: 22px;
+    min-height: 86px;
+    padding-top: 14px;
     align-items: flex-end;
   }
   .hand-card {
-    width: 62px;
-    height: 88px;
+    width: 56px;
+    height: 79px;
   }
   /* fan overlap adapts to hand size so any hand fits any phone width, but never
      overlaps so much that a card exposes less than ~30px of tappable width */
   .hand-card + .hand-card {
     margin-left: clamp(
       -30px,
-      calc((100vw - 140px - var(--n, 7) * 62px) / max(var(--n, 7) - 1, 1)),
+      calc((100vw - 140px - var(--n, 7) * 56px) / max(var(--n, 7) - 1, 1)),
       -8px
     );
   }
