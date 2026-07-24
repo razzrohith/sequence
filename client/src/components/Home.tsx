@@ -16,7 +16,8 @@ export default function Home() {
   const serverProbed = useStore((s) => s.serverProbed);
   const prefs = useStore((s) => s.prefs);
   const stats = useStore((s) => s.stats);
-  const [code, setCode] = useState('');
+  // an invite link (…/?r=CODE) lands you here with the code already filled in
+  const [code, setCode] = useState(() => useStore.getState().pendingInvite ?? '');
   const [showRules, setShowRules] = useState(false);
   const [showLocal, setShowLocal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);

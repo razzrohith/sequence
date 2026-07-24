@@ -170,6 +170,24 @@ function applyPrefs(p: Prefs) {
   }
 }
 
+/** A shared invite link (…/?r=CODE) prefills the join field. Read at module load
+ * so it's available before the first render, then stripped from the URL so a
+ * refresh doesn't re-trigger it. */
+function readInvite(): string | null {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const raw = (params.get('r') ?? '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{5}$/.test(raw)) return null;
+    params.delete('r');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    return raw;
+  } catch {
+    return null;
+  }
+}
+const INVITE_CODE = readInvite();
+
 function getPlayerId(): string {
   let id = LS.get('seq:playerId');
   if (!id) {
@@ -195,6 +213,8 @@ interface Store {
   toasts: Toast[];
   selectedCard: Card | null;
   hint: { card: Card; r: number; c: number } | null;
+  /** room code from an invite link, used to prefill the join field */
+  pendingInvite: string | null;
   rejoining: boolean;
   lastEventSeen: number;
   wasMyTurn: boolean;
@@ -265,6 +285,7 @@ export const useStore = create<Store>((set, get) => ({
   toasts: [],
   selectedCard: null,
   hint: null,
+  pendingInvite: INVITE_CODE,
   rejoining: false,
   lastEventSeen: 0,
   wasMyTurn: false,

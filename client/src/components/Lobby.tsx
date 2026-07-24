@@ -32,10 +32,12 @@ export default function Lobby() {
   const validCount = room.validCounts.includes(n);
   const canPickTeams = n % 6 === 0; // both 2 and 3 teams divide evenly
 
+  // share a one-tap invite link; friends land on Home with the code prefilled
   const copyCode = async () => {
+    const link = `${window.location.origin}${window.location.pathname}?r=${room.code}`;
     try {
-      await navigator.clipboard.writeText(room.code);
-      toast('Room code copied!');
+      await navigator.clipboard.writeText(link);
+      toast('Invite link copied!');
     } catch {
       toast(room.code, 'info');
     }
