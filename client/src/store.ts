@@ -41,7 +41,17 @@ export interface Prefs {
   colorblind: boolean;
   avatar: string;
   difficulty: BotDifficulty;
+  boardTheme: string;
 }
+
+export const BOARD_THEMES = [
+  { id: 'classic', label: 'Silver' },
+  { id: 'emerald', label: 'Emerald' },
+  { id: 'walnut', label: 'Walnut' },
+  { id: 'midnight', label: 'Midnight' },
+  { id: 'crimson', label: 'Crimson' },
+  { id: 'ocean', label: 'Ocean' },
+];
 
 export interface Stats {
   wins: number;
@@ -119,6 +129,7 @@ function loadPrefs(): Prefs {
     colorblind: saved.colorblind ?? false,
     avatar: saved.avatar ?? AVATARS[0],
     difficulty: saved.difficulty ?? 'medium',
+    boardTheme: saved.boardTheme ?? 'classic',
   };
 }
 
@@ -137,6 +148,7 @@ function applyPrefs(p: Prefs) {
   setHaptics(p.haptics);
   try {
     document.body.classList.toggle('colorblind', p.colorblind);
+    document.body.dataset.board = p.boardTheme || 'classic';
   } catch {
     /* SSR/no-dom */
   }
@@ -396,6 +408,19 @@ export const useStore = create<Store>((set, get) => ({
       onClosed: (reason) => {
         get().toast(reason, 'error');
         get()._goHome();
+      },
+      onBecomeHost: (code, snap) => {
+        // the host left and we're the heir — take over hosting on the same code
+        const { name, playerId, prefs } = get();
+        const host = new NetHost(
+          playerId,
+          name || 'Player',
+          prefs.avatar,
+          get().netHandlers(),
+          { code, snap },
+        );
+        set({ net: host, netKind: 'host' });
+        get().toast("The host left — you're hosting now, game continues.", 'gold');
       },
     };
   },

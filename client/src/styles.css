@@ -1062,19 +1062,37 @@ input:focus {
 
 .board-frame {
   --board-size: min(calc(100vh - 300px), calc(100vw - 580px), 680px);
+  /* board frame color — overridden per theme via body[data-board] */
+  --frame-bg: linear-gradient(165deg, #d3d6d4 0%, #bdc1bf 45%, #c9cdcb 70%, #b3b7b5 100%);
+  --frame-ink: rgba(255, 255, 255, 0.92);
   position: relative;
   padding: calc(var(--board-size) * 0.052) calc(var(--board-size) * 0.062);
   border-radius: 10px;
-  /* silver-gray board like the real Jax edition */
-  background:
-    linear-gradient(165deg, #d3d6d4 0%, #bdc1bf 45%, #c9cdcb 70%, #b3b7b5 100%);
+  background: var(--frame-bg);
   box-shadow:
-    inset 0 1px 3px rgba(255, 255, 255, 0.65),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.15),
+    inset 0 1px 3px rgba(255, 255, 255, 0.45),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.18),
     var(--shadow-lg);
   flex-shrink: 1;
   min-height: 0;
 }
+/* ---- board themes (change the frame around the cards) ---- */
+body[data-board='emerald'] .board-frame {
+  --frame-bg: linear-gradient(165deg, #1f7a52 0%, #145c3c 45%, #1c6f4a 70%, #0f4a30 100%);
+}
+body[data-board='walnut'] .board-frame {
+  --frame-bg: linear-gradient(165deg, #6b4326 0%, #4e3019 45%, #5c3a20 70%, #3d2413 100%);
+}
+body[data-board='midnight'] .board-frame {
+  --frame-bg: linear-gradient(165deg, #2b3350 0%, #1a2036 45%, #232a44 70%, #141a2e 100%);
+}
+body[data-board='crimson'] .board-frame {
+  --frame-bg: linear-gradient(165deg, #8f2436 0%, #5f1622 45%, #7c1f2f 70%, #4a1019 100%);
+}
+body[data-board='ocean'] .board-frame {
+  --frame-bg: linear-gradient(165deg, #1f6f8f 0%, #144f68 45%, #1b657f 70%, #0f3d50 100%);
+}
+/* on colored frames the wordmarks/badges read better in warm off-white already */
 .bf-word {
   position: absolute;
   top: 50%;
@@ -1528,6 +1546,57 @@ input:focus {
   grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
   gap: 8px;
 }
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.theme-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+.theme-opt.on {
+  border-color: var(--gold);
+  background: rgba(251, 191, 36, 0.14);
+}
+.theme-swatch {
+  width: 100%;
+  height: 28px;
+  border-radius: 8px;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4), inset 0 -2px 3px rgba(0, 0, 0, 0.22);
+}
+.theme-name {
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+}
+.theme-opt.on .theme-name {
+  color: var(--ink);
+}
+.theme-opt[data-board='classic'] .theme-swatch {
+  background: linear-gradient(165deg, #d3d6d4, #b3b7b5);
+}
+.theme-opt[data-board='emerald'] .theme-swatch {
+  background: linear-gradient(165deg, #1f7a52, #0f4a30);
+}
+.theme-opt[data-board='walnut'] .theme-swatch {
+  background: linear-gradient(165deg, #6b4326, #3d2413);
+}
+.theme-opt[data-board='midnight'] .theme-swatch {
+  background: linear-gradient(165deg, #2b3350, #141a2e);
+}
+.theme-opt[data-board='crimson'] .theme-swatch {
+  background: linear-gradient(165deg, #8f2436, #4a1019);
+}
+.theme-opt[data-board='ocean'] .theme-swatch {
+  background: linear-gradient(165deg, #1f6f8f, #0f3d50);
+}
 .avatar-opt {
   aspect-ratio: 1;
   border-radius: 12px;
@@ -1936,58 +2005,50 @@ body.colorblind .chip-star {
 .cf-pips .pip.flip {
   transform: translate(-50%, -50%) rotate(180deg);
 }
-/* court cards: framed "artwork" panel like the real board */
-.face-frame {
+/* court cards (J/Q/K): clean centered monogram — large serif letter + suit */
+.cf-court {
   position: relative;
-  width: 58%;
-  height: 70%;
-  border: 0.08em solid #b08d2f;
-  border-radius: 0.2em;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background:
-    linear-gradient(
-      160deg,
-      #f8eed4 0%,
-      #eddaa8 30%,
-      #f5e7c4 50%,
-      #e9d09a 72%,
-      #f8eed4 100%
-    );
-  box-shadow: inset 0 0 0 0.14em rgba(255, 255, 255, 0.55);
-}
-.ff-letter {
-  font-family: 'Playfair Display', serif;
-  font-size: 2em;
-  font-weight: 800;
+  gap: 0.05em;
   line-height: 1;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
 }
-.ff-suit {
-  position: absolute;
-  width: 0.65em;
-  height: 0.65em;
-}
-.ff-suit.tl {
-  top: 5%;
-  left: 7%;
-}
-.ff-suit.br {
-  bottom: 5%;
-  right: 7%;
-  transform: rotate(180deg);
-}
-.ff-eyes {
-  position: absolute;
-  bottom: 7%;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.4em;
+.cf-court-letter {
+  font-family: 'Playfair Display', serif;
   font-weight: 800;
-  letter-spacing: 0.1em;
-  color: #6b5518;
-  white-space: nowrap;
+  font-size: 2.3em;
+  line-height: 0.9;
+}
+.cf-court-suit {
+  width: 1em;
+  height: 1em;
+}
+.cf-jack-tag {
+  position: absolute;
+  top: -0.55em;
+  right: -0.75em;
+  font-size: 0.7em;
+  line-height: 1;
+}
+.cf-jack-tag.wild {
+  color: #16a34a;
+}
+.cf-jack-tag.cut {
+  color: #dc2626;
+}
+/* a subtle hairline inset gives every card a classic printed-card feel */
+.cardface::after {
+  content: '';
+  position: absolute;
+  inset: 5%;
+  border-radius: 6%;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  pointer-events: none;
+}
+.cardface.v-cell::after {
+  inset: 7%;
 }
 
 /* ---------- win overlay ---------- */

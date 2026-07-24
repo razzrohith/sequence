@@ -31,6 +31,16 @@ import type {
 } from '../../shared/types';
 import { TEAMS } from '../../shared/types';
 
+/** Full authoritative state the host replicates to its heir, so the heir can
+ * take over hosting if the host leaves (host migration). */
+export interface HostSnapshot {
+  hostId: string; // the (old) host's player id
+  settings: GameSettings;
+  players: { id: string; name: string; avatar?: string; isBot: boolean; connected: boolean }[];
+  started: boolean;
+  core: GameCore | null; // rng stripped
+}
+
 export interface NetHandlers {
   onRoomUpdate: (r: RoomInfo) => void;
   onGameState: (g: ClientGameState) => void;
@@ -40,6 +50,8 @@ export interface NetHandlers {
   onKicked: () => void;
   onJoined: (code: string, spectator: boolean) => void;
   onClosed: (reason: string) => void;
+  /** the host left and this client is the heir — become the new host */
+  onBecomeHost: (code: string, snap: HostSnapshot) => void;
 }
 
 // Public MQTT-over-WebSocket brokers (tried in order). No account required.
@@ -119,29 +131,66 @@ export class NetHost {
   private opened = false;
   private brokerIdx = 0;
 
-  constructor(hostId: string, hostName: string, avatar: string | undefined, h: NetHandlers) {
+  private seeded = false;
+
+  constructor(
+    hostId: string,
+    hostName: string,
+    avatar: string | undefined,
+    h: NetHandlers,
+    seed?: { code: string; snap: HostSnapshot },
+  ) {
     this.hostId = hostId;
     this.h = h;
-    this.settings = defaultSettings();
-    this.players = [
-      { id: hostId, name: hostName || 'Player', avatar, isBot: false, connected: true },
-    ];
-    this.code = '';
     this.client = undefined as unknown as MqttClient;
+    if (seed) {
+      // taking over an existing room (host migration): keep the code + state
+      this.seeded = true;
+      this.code = seed.code;
+      this.settings = seed.snap.settings;
+      this.players = seed.snap.players.map((p) => ({ ...p }));
+      const old = this.players.find((p) => p.id === seed.snap.hostId);
+      if (old && old.id !== hostId) {
+        old.connected = false;
+        old.isBot = true; // AI plays the departed host's seat
+      }
+      let me = this.players.find((p) => p.id === hostId);
+      if (!me) {
+        me = { id: hostId, name: hostName || 'Player', avatar, isBot: false, connected: true };
+        this.players.push(me);
+      }
+      me.connected = true;
+      me.isBot = false;
+      this.started = seed.snap.started;
+      this.game = seed.snap.core ? { ...seed.snap.core, rng: Math.random } : null;
+      if (this.game) {
+        for (const gp of this.game.players) {
+          const rp = this.players.find((p) => p.id === gp.id);
+          if (rp) gp.isBot = rp.isBot;
+        }
+      }
+      this.brokerIdx = Math.max(0, BROKER_PREFIX.indexOf(this.code[0] ?? ''));
+    } else {
+      this.settings = defaultSettings();
+      this.players = [
+        { id: hostId, name: hostName || 'Player', avatar, isBot: false, connected: true },
+      ];
+      this.code = '';
+    }
     this.connectBroker();
   }
 
   /** Try the current broker; if it can't be reached, fall over to the next. */
   private connectBroker() {
     const idx = this.brokerIdx;
-    this.code = BROKER_PREFIX[idx] + makeCode4();
+    if (!this.seeded) this.code = BROKER_PREFIX[idx] + makeCode4();
     this.base = `${TOPIC}/${this.code}`;
     let settled = false;
     this.client = mqtt.connect(
       BROKERS[idx],
       mqttOptions(this.hostId, {
         topic: `${this.base}/b`,
-        payload: JSON.stringify({ t: 'closed', reason: 'The host left.' }),
+        payload: JSON.stringify({ t: 'hostgone' }),
       }),
     );
     const failover = () => {
@@ -159,15 +208,17 @@ export class NetHost {
       }
       this.connectBroker();
     };
-    const failTimer = setTimeout(failover, 9500);
+    // a seeded (migrated) host must stay on the code's own broker — don't fail over
+    const failTimer = this.seeded ? null : setTimeout(failover, 9500);
     this.client.on('connect', () => {
       settled = true;
-      clearTimeout(failTimer);
+      if (failTimer) clearTimeout(failTimer);
       this.client.subscribe(`${this.base}/h`, { qos: QOS }, () => {
         if (!this.opened) {
           this.opened = true;
           this.h.onJoined(this.code, false);
           this.pushRoom();
+          if (this.seeded && this.game) this.afterChange(); // resume the migrated game
         } else {
           // reconnected mid-game: resend current room + state
           this.pushRoom();
@@ -311,9 +362,38 @@ export class NetHost {
     };
   }
 
+  /** The connected human player (not the host) with the lowest seat — becomes
+   * host if the current host leaves. */
+  private heirId(): string | null {
+    const heir = this.players.find((p) => !p.isBot && p.connected && p.id !== this.hostId);
+    return heir ? heir.id : null;
+  }
+  /** Replicate full authoritative state to the heir so they can take over. */
+  private sendSnapshotToHeir() {
+    const heir = this.heirId();
+    if (!heir) return;
+    const { rng, ...core } = this.game ?? ({} as GameCore);
+    void rng;
+    const snap: HostSnapshot = {
+      hostId: this.hostId,
+      settings: this.settings,
+      players: this.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        avatar: p.avatar,
+        isBot: p.isBot,
+        connected: p.connected,
+      })),
+      started: this.started,
+      core: this.game ? (core as GameCore) : null,
+    };
+    this.toPlayer(heir, { t: 'full', snap });
+  }
+
   private pushRoom() {
     this.h.onRoomUpdate(this.roomInfo());
     this.pub('b', { t: 'room', info: this.roomInfo() });
+    this.sendSnapshotToHeir();
   }
 
   private pushState() {
@@ -336,6 +416,7 @@ export class NetHost {
       st.spectatorCount = this.spectators.length;
       this.toPlayer(s.id, { t: 'state', s: st });
     }
+    this.sendSnapshotToHeir();
   }
 
   // ---- host controls ----
@@ -566,14 +647,17 @@ export class NetHost {
 
   destroy() {
     this.clearTimers();
-    this.pub('b', { t: 'closed', reason: 'The host left.' });
+    // if a human can take over, hand the room off (heir promotes); otherwise close it
+    const heir = this.heirId();
+    this.sendSnapshotToHeir();
+    this.pub('b', heir ? { t: 'hostgone' } : { t: 'closed', reason: 'The host left.' });
     setTimeout(() => {
       try {
         this.client.end(true);
       } catch {
         /* ignore */
       }
-    }, 150);
+    }, 250);
   }
 }
 
@@ -587,7 +671,11 @@ export class NetGuest {
   private avatar?: string;
   private spectate: boolean;
   private base: string;
+  private code: string;
   private settled = false;
+  private lastRoom: RoomInfo | null = null;
+  private lastFull: HostSnapshot | null = null;
+  private migrating = false;
 
   constructor(
     code: string,
@@ -603,6 +691,7 @@ export class NetGuest {
     this.avatar = avatar;
     this.spectate = spectate;
     const full = code.trim().toUpperCase();
+    this.code = full;
     this.base = `${TOPIC}/${full}`;
     // the code's first letter tells us which broker the host is on
     const idx = Math.max(0, BROKER_PREFIX.indexOf(full[0] ?? ''));
@@ -661,13 +750,43 @@ export class NetGuest {
     if (t === 'joined') {
       this.settled = true;
       this.h.onJoined(String(msg.code ?? ''), msg.spectator === true);
-    } else if (t === 'room') this.h.onRoomUpdate(msg.info as RoomInfo);
-    else if (t === 'state') this.h.onGameState(msg.s as ClientGameState);
+    } else if (t === 'room') {
+      this.lastRoom = msg.info as RoomInfo;
+      this.h.onRoomUpdate(this.lastRoom);
+    } else if (t === 'state') this.h.onGameState(msg.s as ClientGameState);
     else if (t === 'chat') this.h.onChat(msg.m as ChatMessage);
     else if (t === 'emote') this.h.onEmote(msg.m as EmoteMessage);
     else if (t === 'err') this.h.onError(String(msg.m ?? 'Error'));
     else if (t === 'kicked') this.h.onKicked();
+    else if (t === 'full') this.lastFull = msg.snap as HostSnapshot; // I'm the heir
+    else if (t === 'hostgone') this.handleHostGone();
     else if (t === 'closed') this.h.onClosed(String(msg.reason ?? 'The room closed.'));
+  }
+
+  /** Host left: if I'm the designated heir (and hold a snapshot), take over as
+   * the new host on the same room code; otherwise wait for the new host. */
+  private handleHostGone() {
+    if (this.migrating) return;
+    this.migrating = true;
+    const room = this.lastRoom;
+    const heir = room?.players.find((p) => !p.isBot && p.connected && p.id !== room.hostId);
+    if (heir && heir.id === this.playerId && this.lastFull) {
+      // I'm the heir — promote to host
+      try {
+        this.client.end(true);
+      } catch {
+        /* ignore */
+      }
+      this.h.onBecomeHost(this.code, this.lastFull);
+      return;
+    }
+    // not the heir (or no snapshot): the heir should promote and re-broadcast.
+    // If nothing arrives soon, the room is gone.
+    const roomAtGone = this.lastRoom;
+    setTimeout(() => {
+      if (this.lastRoom === roomAtGone) this.h.onClosed('The room closed.');
+      else this.migrating = false; // a new host took over; carry on
+    }, 9000);
   }
 
   send(msg: Record<string, unknown>) {

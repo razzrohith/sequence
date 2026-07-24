@@ -153,13 +153,14 @@ export default function CardFace({
         </div>
       ) : court ? (
         <div className="cf-center">
-          <div className={`face-frame ${red ? 'red' : 'black'}`}>
-            <SuitIcon suit={suit} className="ff-suit tl" />
-            <span className="ff-letter">{label}</span>
-            {rank === 'J' && variant === 'hand' && (
-              <span className="ff-eyes">{oneEyed ? 'ONE EYED' : 'TWO EYED'}</span>
+          <div className="cf-court">
+            <span className="cf-court-letter">{label}</span>
+            <SuitIcon suit={suit} className="cf-court-suit" />
+            {rank === 'J' && (
+              <span className={`cf-jack-tag ${oneEyed ? 'cut' : 'wild'}`}>
+                {oneEyed ? '⊘' : '★'}
+              </span>
             )}
-            <SuitIcon suit={suit} className="ff-suit br" />
           </div>
         </div>
       ) : (

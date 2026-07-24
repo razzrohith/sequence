@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { AVATARS, useStore } from '../store';
+import { AVATARS, BOARD_THEMES, useStore } from '../store';
 import { sfx } from '../sounds';
 
 function Toggle({
@@ -57,6 +57,26 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 }}
               >
                 {a}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="setting-group">
+          <span className="setting-label">Board theme</span>
+          <div className="theme-grid">
+            {BOARD_THEMES.map((t) => (
+              <button
+                key={t.id}
+                className={`theme-opt ${prefs.boardTheme === t.id ? 'on' : ''}`}
+                data-board={t.id}
+                onClick={() => {
+                  sfx.select();
+                  setPref('boardTheme', t.id);
+                }}
+              >
+                <span className="theme-swatch" />
+                <span className="theme-name">{t.label}</span>
               </button>
             ))}
           </div>
