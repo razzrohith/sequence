@@ -131,7 +131,11 @@ export function chooseBotMove(
 
   // 1) exchange a dead card if we have one (free value), hard/medium always do;
   // easy sometimes skips it (more human-like weak play)
-  if (!game.deadExchangedThisTurn && !(difficulty === 'easy' && Math.random() < 0.4)) {
+  if (
+    game.settings.allowDeadExchange !== false &&
+    !game.deadExchangedThisTurn &&
+    !(difficulty === 'easy' && Math.random() < 0.4)
+  ) {
     const dead = player.hand.find((card) => isDeadCard(game, card));
     if (dead) return { type: 'exchangeDead', card: dead };
   }
@@ -167,7 +171,7 @@ export function chooseBotMove(
   if (best) return best.move;
 
   // no legal move: try exchanging any dead card, else pass
-  if (!game.deadExchangedThisTurn) {
+  if (game.settings.allowDeadExchange !== false && !game.deadExchangedThisTurn) {
     const dead = player.hand.find((card) => isDeadCard(game, card) && !isJack(card));
     if (dead) return { type: 'exchangeDead', card: dead };
   }

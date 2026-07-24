@@ -3,12 +3,17 @@
 let ctx: AudioContext | null = null;
 let muted = false;
 let hapticsOn = true;
+/** master volume 0..1, applied on top of each cue's own gain */
+let masterVol = 0.8;
 
 export function setMuted(m: boolean) {
   muted = m;
 }
 export function isMuted() {
   return muted;
+}
+export function setVolume(v: number) {
+  masterVol = Math.max(0, Math.min(1, v));
 }
 export function setHaptics(on: boolean) {
   hapticsOn = on;
@@ -50,7 +55,7 @@ function tone(
     osc.type = type;
     osc.frequency.setValueAtTime(freq, t);
     if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-    g.gain.setValueAtTime(gain, t);
+    g.gain.setValueAtTime(Math.max(0.0001, gain * masterVol), t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     osc.connect(g).connect(a.destination);
     osc.start(t);

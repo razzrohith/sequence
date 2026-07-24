@@ -20,6 +20,7 @@ export default function Home() {
   const stats = useStore((s) => s.stats);
   // an invite link (…/?r=CODE) lands you here with the code already filled in
   const [code, setCode] = useState(() => useStore.getState().pendingInvite ?? '');
+  const [joinPw, setJoinPw] = useState('');
   const [showRules, setShowRules] = useState(false);
   const [showLocal, setShowLocal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -137,19 +138,27 @@ export default function Home() {
                 e.key === 'Enter' &&
                 online &&
                 code.length === 5 &&
-                (watchMode ? spectate(code) : joinRoom(code))
+                (watchMode ? spectate(code) : joinRoom(code, joinPw))
               }
             />
             <motion.button
               className="btn btn-secondary"
               disabled={!online || code.length !== 5}
               whileTap={{ scale: 0.96 }}
-              onClick={() => (watchMode ? spectate(code) : joinRoom(code))}
+              onClick={() => (watchMode ? spectate(code) : joinRoom(code, joinPw))}
             >
               {watchMode ? 'Watch' : 'Join'}
             </motion.button>
           </div>
         </div>
+        <input
+          className="code-input pw-input"
+          type="password"
+          placeholder="Room password (if any)"
+          maxLength={24}
+          value={joinPw}
+          onChange={(e) => setJoinPw(e.target.value)}
+        />
         <label className="watch-toggle">
           <input
             type="checkbox"

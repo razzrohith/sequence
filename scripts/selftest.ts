@@ -14,6 +14,7 @@ import {
   defaultSettings,
   isDeadCard,
   legalCellsFor,
+  requiredFor,
   toClientState,
   validateBoardLayout,
 } from '../shared/game';
@@ -467,6 +468,73 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
   assert(d.undoMode === 'approval', 'undo: defaults to needing approval');
   assert(defaultSettings({ undoMode: 'instant' }).undoMode === 'instant', 'undo: instant setting');
   assert(defaultSettings({ undoMode: 'off' }).undoMode === 'off', 'undo: off setting');
+}
+
+// first player: normally seat 0, optionally random
+{
+  assert(freshGame(4, 2).turn === 0, 'first player: seat 0 deals by default');
+  const seen = new Set<number>();
+  for (let i = 0; i < 40; i++) {
+    Math.random = mulberry32(500 + i);
+    const g = createGame(
+      [0, 1, 2, 3].map((n) => ({ id: `p${n}`, name: `P${n}`, isBot: true, team: TEAMS[n % 2] })),
+      defaultSettings({ firstPlayer: 'random' }),
+    );
+    seen.add(g.turn);
+  }
+  Math.random = mulberry32(0xc0ffee);
+  assert(seen.size > 1, 'first player: random actually varies who starts');
+  assert([...seen].every((t) => t >= 0 && t < 4), 'first player: random stays in range');
+}
+
+// dead-card exchange can be switched off
+{
+  const g = createGame(
+    [0, 1].map((i) => ({ id: `p${i}`, name: `P${i}`, isBot: true, team: TEAMS[i % 2] })),
+    defaultSettings({ allowDeadExchange: false }),
+  );
+  setChips(g, 'blue', positionsFor(g.layout).get('2S')!);
+  giveHand(g, 0, ['2S', '3S']);
+  assert(isDeadCard(g, '2S'), 'dead-exchange off: the card is still dead');
+  assert(
+    !applyMove(g, 'p0', { type: 'exchangeDead', card: '2S' }).ok,
+    'dead-exchange off: swapping is refused',
+  );
+  // the bot must not keep proposing a move the rules forbid
+  const mv = chooseBotMove(g, g.players[0], 'hard');
+  assert(mv.type !== 'exchangeDead', 'dead-exchange off: the bot stops offering it');
+}
+
+// handicap: a team can be made to complete extra sequences
+{
+  const g = createGame(
+    [0, 1].map((i) => ({ id: `p${i}`, name: `P${i}`, isBot: true, team: TEAMS[i % 2] })),
+    defaultSettings({ winSequences: 1, handicapTeam: 'red', handicapExtra: 1 }),
+  );
+  assert(requiredFor(g, 'red') === 2, 'handicap: the handicapped team needs one more');
+  assert(requiredFor(g, 'blue') === 1, 'handicap: the other team is unaffected');
+  const run = runOf(g, 'red', 2, 2);
+  giveHand(g, 0, [run.card]);
+  applyMove(g, 'p0', { type: 'place', card: run.card, r: run.r, c: run.c });
+  assert(g.sequences.length === 1, 'handicap: the sequence is made');
+  assert(g.winner === null, 'handicap: one sequence is not enough for the handicapped team');
+}
+
+// chess clock: each player gets a bank that is billed as their turns end
+{
+  const g = createGame(
+    [0, 1].map((i) => ({ id: `p${i}`, name: `P${i}`, isBot: true, team: TEAMS[i % 2] })),
+    defaultSettings({ clockSeconds: 300 }),
+  );
+  assert(g.timeBank?.p0 === 300000 && g.timeBank?.p1 === 300000, 'clock: both banks start full');
+  g.turnStartedAt = Date.now() - 4000; // pretend p0 thought for 4s
+  const card = g.players[0].hand.find((c) => legalCellsFor(g, 'red', c).length > 0)!;
+  const [r, c] = legalCellsFor(g, 'red', card)[0];
+  applyMove(g, 'p0', { type: 'place', card, r, c });
+  const left = g.timeBank!.p0;
+  assert(left < 300000 && left > 293000, `clock: p0 was billed about 4s (left ${left}ms)`);
+  assert(g.timeBank!.p1 === 300000, 'clock: the waiting player is not billed');
+  assert(toClientState(g, 'p0').timeBank?.p0 === left, 'clock: the bank reaches the client');
 }
 
 // hints are allowed unless the room turns them off

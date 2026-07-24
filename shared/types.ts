@@ -47,6 +47,20 @@ export interface GameSettings {
   turnSeconds: number;
   /** sequences needed to win; omit for the official default (2 teams -> 2, 3 teams -> 1) */
   winSequences?: number;
+  /** who takes the first turn: the first seat, or a random one */
+  firstPlayer?: 'first' | 'random';
+  /** allow swapping a dead card for a new one (some groups play without it) */
+  allowDeadExchange?: boolean;
+  /** total seconds each player has for the whole game; 0 = no clock */
+  clockSeconds?: number;
+  /** a team that must complete extra sequences to win (handicap) */
+  handicapTeam?: Team;
+  /** how many extra sequences that team needs */
+  handicapExtra?: number;
+  /** optional room password; guests must supply it to join */
+  password?: string;
+  /** chat is visible only to your own team */
+  teamChat?: boolean;
   /** whether the Hint button is available to players in this room */
   hints?: boolean;
   /** how taking back a move works: not at all, straight away, or only when an
@@ -112,6 +126,8 @@ export interface GameCore {
   rng?: () => number;
   /** epoch ms the current turn began (for the turn timer) */
   turnStartedAt?: number;
+  /** playerId -> milliseconds left on their game clock (chess-clock mode) */
+  timeBank?: Record<string, number>;
 }
 
 export interface ClientGameState {
@@ -135,6 +151,8 @@ export interface ClientGameState {
   log: MoveEvent[];
   /** epoch ms when the current turn auto-plays (turn timer); null if no timer */
   turnDeadline: number | null;
+  /** milliseconds left on each player's game clock, when a clock is in use */
+  timeBank?: Record<string, number>;
   /** true if you are watching, not seated */
   spectator?: boolean;
   /** number of watchers */
@@ -157,6 +175,8 @@ export interface LobbyPlayer {
   name: string;
   isBot: boolean;
   connected: boolean;
+  /** has this player marked themselves ready to start? (bots are always ready) */
+  ready?: boolean;
   team: Team | null;
   avatar?: string;
 }

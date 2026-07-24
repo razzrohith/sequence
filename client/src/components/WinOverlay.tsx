@@ -96,6 +96,12 @@ export default function WinOverlay() {
   const myTeam = game.players.find((p) => p.id === game.yourId)?.team;
   const won = winner !== null && myTeam === winner;
   const isHost = mode === 'local' || room?.hostId === playerId;
+  const chipsSummary = [...new Set(game.players.map((p) => p.team))]
+    .map(
+      (t) =>
+        `${t}: ${game.sequences.filter((s) => s.team === t).length} seq`,
+    )
+    .join(', ');
 
   return (
     <div className="win-overlay">
@@ -126,6 +132,23 @@ export default function WinOverlay() {
         </p>
 
         <Recap />
+
+        <button
+          className="btn btn-ghost"
+          onClick={async () => {
+            const text = winner
+              ? `${TEAM_LABEL[winner]} won our game of Sequence! ${chipsSummary}`
+              : `Our game of Sequence ended in a draw. ${chipsSummary}`;
+            try {
+              if (navigator.share) await navigator.share({ text });
+              else await navigator.clipboard.writeText(text);
+            } catch {
+              /* user dismissed the share sheet */
+            }
+          }}
+        >
+          ⤴ Share result
+        </button>
 
         <div className="win-actions">
           {isHost ? (

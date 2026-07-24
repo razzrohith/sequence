@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { type CSSProperties, useMemo } from 'react';
+import { type CSSProperties, useMemo, useState } from 'react';
 import { isCorner } from '../../../shared/board';
 import { isOneEyed, legalCellsOnBoard } from '../../../shared/game';
 import type { Team } from '../../../shared/types';
@@ -47,6 +47,10 @@ export default function Board() {
   const game = useStore((s) => s.game);
   const selectedCard = useStore((s) => s.selectedCard);
   const hint = useStore((s) => s.hint);
+  const previewCard = useStore((s) => s.previewCard);
+  const confirmPlace = useStore((s) => s.prefs.confirmPlace);
+  // with 'confirm before placing' on, the first tap arms a cell, the second commits
+  const [armed, setArmed] = useState<string | null>(null);
   const playMove = useStore((s) => s.playMove);
   const selectCard = useStore((s) => s.selectCard);
 
@@ -55,11 +59,12 @@ export default function Board() {
     !!game && !game.winner && !game.stalemate && game.players[game.turn]?.id === game.yourId;
 
   const legal = useMemo(() => {
-    if (!game || !me || !selectedCard || !myTurn) return new Set<string>();
+    const card = selectedCard ?? previewCard;
+    if (!game || !me || !card || !myTurn) return new Set<string>();
     return new Set(
-      legalCellsOnBoard(game.board, me.team, selectedCard, game.layout).map(([r, c]) => `${r},${c}`),
+      legalCellsOnBoard(game.board, me.team, card, game.layout).map(([r, c]) => `${r},${c}`),
     );
-  }, [game, me, selectedCard, myTurn]);
+  }, [game, me, selectedCard, previewCard, myTurn]);
 
   const lastMove = game?.lastMove;
   const removing = selectedCard ? isOneEyed(selectedCard) : false;
@@ -93,7 +98,13 @@ export default function Board() {
   if (!game) return null;
 
   const onCellClick = (r: number, c: number) => {
-    if (!selectedCard || !legal.has(`${r},${c}`)) return;
+    const key = `${r},${c}`;
+    if (!selectedCard || !legal.has(key)) return;
+    if (confirmPlace && armed !== key) {
+      setArmed(key); // first tap only arms the cell
+      return;
+    }
+    setArmed(null);
     if (removing) {
       playMove({ type: 'remove', card: selectedCard, r, c });
     } else {
@@ -102,10 +113,27 @@ export default function Board() {
     selectCard(null);
   };
 
+  const lm = game.lastMove;
+  const spoken = lm
+    ? `${lm.playerName} ${
+        lm.kind === 'place'
+          ? `played ${rankLabel(lm.card ?? '')} of ${SUIT_NAME[(lm.card ?? '')[1]] ?? ''}`
+          : lm.kind === 'remove'
+            ? 'removed a chip'
+            : lm.kind === 'pass'
+              ? 'passed'
+              : 'took a turn'
+      }${lm.newSequences?.length ? '. Sequence completed' : ''}`
+    : '';
+
   return (
     // .board-area is the measuring box: the board sizes itself from whatever
     // space is left over, so no layout needs a hardcoded chrome budget
     <div className="board-area">
+      {/* announced to screen readers only, so opponents' moves are not silent */}
+      <div className="sr-only" role="status" aria-live="polite">
+        {spoken}
+      </div>
     <div className={`board-frame ${myTurn ? 'your-turn' : ''} ${game.winner ? 'won' : ''}`}>
       <span className="bf-word left">SEQUENCE</span>
       <span className="bf-word right">SEQUENCE</span>
@@ -132,6 +160,7 @@ export default function Board() {
                   isLegal ? (removing ? 'legal-remove' : 'legal') : '',
                   seqTeam ? `in-seq seq-${seqTeam}` : '',
                   sweep >= 0 ? 'seq-flash' : '',
+                  armed === `${r},${c}` ? 'armed' : '',
                 ].join(' ')}
                 style={sweep >= 0 ? ({ '--sweep': sweep } as CSSProperties) : undefined}
                 onClick={() => onCellClick(r, c)}

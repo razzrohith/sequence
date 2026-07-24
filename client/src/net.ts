@@ -115,6 +115,7 @@ interface HostPlayer {
   avatar?: string;
   isBot: boolean;
   connected: boolean;
+  ready?: boolean;
 }
 
 // ---------------- HOST ----------------
@@ -284,6 +285,12 @@ export class NetHost {
       const avatar = this.clean(msg.avatar, 8) || undefined;
       const wantSpectate = msg.spectate === true;
       const existing = this.players.find((p) => p.id === playerId);
+      // optional room password: only gates new arrivals, not reconnects
+      const pw = this.settings.password ?? '';
+      if (pw && !existing && this.clean(msg.pw, 24) !== pw) {
+        this.toPlayer(playerId, { t: 'err', m: 'Wrong room password.' });
+        return;
+      }
       if (existing) {
         existing.connected = true;
         existing.isBot = false;
@@ -325,6 +332,7 @@ export class NetHost {
     else if (t === 'move') this.applyPlayerMove(from, msg.move as Move);
     else if (t === 'chat') this.chat(from, this.clean(msg.text, 300));
     else if (t === 'emote') this.emote(from, this.clean(msg.emote, 8));
+    else if (t === 'ready') this.setReady(from, msg.ready === true);
     else if (t === 'undoReq') this.requestUndo(from);
     else if (t === 'undoResp') this.respondUndo(from, msg.approve === true);
   }
@@ -369,6 +377,7 @@ export class NetHost {
       connected: p.connected,
       team: teamOpts.length > 0 ? TEAMS[i % teamCount] : null,
       avatar: p.avatar,
+      ready: p.isBot ? true : !!p.ready,
     }));
     return {
       code: this.code,
@@ -407,6 +416,11 @@ export class NetHost {
       core: this.game ? (core as GameCore) : null,
     };
     this.toPlayer(heir, { t: 'full', snap });
+  }
+
+  /** let the store nudge a room refresh (used when the host toggles ready) */
+  pushRoomPublic() {
+    this.pushRoom();
   }
 
   private pushRoom() {
@@ -462,6 +476,13 @@ export class NetHost {
     randomBoard?: boolean;
     undoMode?: string;
     hints?: boolean;
+    firstPlayer?: string;
+    allowDeadExchange?: boolean;
+    clockSeconds?: number;
+    handicapTeam?: string;
+    handicapExtra?: number;
+    password?: string;
+    teamChat?: boolean;
   }) {
     // the board theme is purely cosmetic, so the host may change it mid-game
     const themed = typeof s.boardTheme === 'string' && /^[a-z]{2,12}$/.test(s.boardTheme);
@@ -480,12 +501,31 @@ export class NetHost {
     if (s.undoMode === 'off' || s.undoMode === 'instant' || s.undoMode === 'approval')
       this.settings.undoMode = s.undoMode;
     if (typeof s.hints === 'boolean') this.settings.hints = s.hints;
+    if (s.firstPlayer === 'first' || s.firstPlayer === 'random')
+      this.settings.firstPlayer = s.firstPlayer;
+    if (typeof s.allowDeadExchange === 'boolean')
+      this.settings.allowDeadExchange = s.allowDeadExchange;
+    if (typeof s.clockSeconds === 'number' && s.clockSeconds >= 0 && s.clockSeconds <= 7200)
+      this.settings.clockSeconds = Math.floor(s.clockSeconds);
+    if (s.handicapTeam === 'red' || s.handicapTeam === 'blue' || s.handicapTeam === 'green')
+      this.settings.handicapTeam = s.handicapTeam;
+    if (s.handicapTeam === '') this.settings.handicapTeam = undefined;
+    if (typeof s.handicapExtra === 'number' && s.handicapExtra >= 0 && s.handicapExtra <= 3)
+      this.settings.handicapExtra = Math.floor(s.handicapExtra);
+    if (typeof s.password === 'string') this.settings.password = s.password.slice(0, 24);
+    if (typeof s.teamChat === 'boolean') this.settings.teamChat = s.teamChat;
     this.pushRoom();
   }
   start(): string | null {
     const opts = teamOptionsFor(this.players.length);
     if (opts.length === 0)
       return `Need ${Object.keys(HAND_SIZES).join(' / ')} players (add bots or friends).`;
+    // everyone has to say they are ready, so nobody is dealt in mid-setup
+    const notReady = this.players.filter(
+      (p) => !p.isBot && p.connected && p.id !== this.hostId && !p.ready,
+    );
+    if (notReady.length > 0)
+      return `Waiting for ${notReady.map((p) => p.name).join(', ')} to be ready.`;
     const teamCount = this.validTeamCount();
     this.settings.teamCount = teamCount;
     const seated = this.players.map((p, i) => ({
@@ -605,11 +645,32 @@ export class NetHost {
     if (!p) return;
     const gp = this.game?.players.find((x) => x.id === pid);
     const msg: ChatMessage = { playerId: pid, name: p.name, team: gp?.team ?? null, text, ts: 0 };
+    if (this.settings.teamChat && this.game && gp?.team) {
+      // team-only: send to that team's seats, never on the shared broadcast topic
+      for (const other of this.game.players) {
+        if (other.team !== gp.team) continue;
+        if (other.id === this.hostId) this.h.onChat(msg);
+        else this.toPlayer(other.id, { t: 'chat', m: msg });
+      }
+      return;
+    }
     this.h.onChat(msg);
     this.pub('b', { t: 'chat', m: msg });
   }
+  private setReady(pid: string, ready: boolean) {
+    const p = this.players.find((x) => x.id === pid);
+    if (!p || this.started) return;
+    p.ready = ready;
+    this.pushRoom();
+  }
+
+  /** at most one emote every 1.5s per player, so nobody can spam the table */
+  private emoteAt = new Map<string, number>();
   private emote(pid: string, emote: string) {
     if (!emote) return;
+    const now = Date.now();
+    if (now - (this.emoteAt.get(pid) ?? 0) < 1500) return;
+    this.emoteAt.set(pid, now);
     const p = this.players.find((x) => x.id === pid);
     if (!p) return;
     const gp = this.game?.players.find((x) => x.id === pid);
@@ -720,6 +781,7 @@ export class NetGuest {
   private name: string;
   private avatar?: string;
   private spectate: boolean;
+  private password: string;
   private base: string;
   private code: string;
   private settled = false;
@@ -746,8 +808,10 @@ export class NetGuest {
     avatar: string | undefined,
     spectate: boolean,
     h: NetHandlers,
+    password = '',
   ) {
     this.h = h;
+    this.password = password;
     this.playerId = playerId;
     this.name = name;
     this.avatar = avatar;
@@ -799,6 +863,7 @@ export class NetGuest {
           name: this.name,
           avatar: this.avatar,
           spectate: this.spectate,
+          pw: this.password,
         }),
         { qos: QOS },
       );
@@ -863,6 +928,10 @@ export class NetGuest {
       if (this.lastRoom === roomAtGone) this.h.onClosed('The room closed.');
       else this.migrating = false; // a new host took over; carry on
     }, HOST_GONE_GRACE_MS + 9000);
+  }
+
+  ready(v: boolean) {
+    this.send({ t: 'ready', ready: v });
   }
 
   send(msg: Record<string, unknown>) {

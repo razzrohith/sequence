@@ -1,21 +1,54 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { useRef } from 'react';
 import { isDeadOnBoard, isJack, legalCellsOnBoard } from '../../../shared/game';
 import type { Card } from '../../../shared/types';
 import { sfx } from '../sounds';
 import { useStore } from '../store';
 import CardFace from './CardFace';
 
+const SUIT_ORDER: Record<string, number> = { S: 0, H: 1, D: 2, C: 3 };
+const RANK_ORDER = ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'];
+
+/** Optional tidy ordering of your hand. Jacks group at the end either way, since
+ * they are the cards you play differently. */
+function sortHand(hand: Card[], mode: 'off' | 'suit' | 'rank'): Card[] {
+  if (mode === 'off') return hand;
+  const rank = (c: Card) => RANK_ORDER.indexOf(c[0]);
+  const suit = (c: Card) => SUIT_ORDER[c[1]] ?? 9;
+  return [...hand].sort((a, b) => {
+    const ja = isJack(a) ? 1 : 0;
+    const jb = isJack(b) ? 1 : 0;
+    if (ja !== jb) return ja - jb;
+    return mode === 'suit'
+      ? suit(a) - suit(b) || rank(a) - rank(b)
+      : rank(a) - rank(b) || suit(a) - suit(b);
+  });
+}
+
 export default function Hand() {
   const game = useStore((s) => s.game);
   const selectedCard = useStore((s) => s.selectedCard);
   const selectCard = useStore((s) => s.selectCard);
   const playMove = useStore((s) => s.playMove);
+  const sortMode = useStore((s) => s.prefs.sortHand);
+  const previewCardSet = useStore((s) => s.previewCardSet);
+  // press and hold a card to light up its spaces without committing to it
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startHold = (card: string) => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = setTimeout(() => previewCardSet(card), 350);
+  };
+  const endHold = () => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    previewCardSet(null);
+  };
 
   if (!game) return null;
   const me = game.players.find((p) => p.id === game.yourId);
   const myTurn =
     !game.winner && !game.stalemate && game.players[game.turn]?.id === game.yourId;
-  const hand = game.yourHand;
+  const hand = sortHand(game.yourHand, sortMode ?? 'off');
 
   const noLegalMoves =
     myTurn &&
@@ -106,6 +139,10 @@ export default function Hand() {
                 transition={{ type: 'spring', stiffness: 380, damping: 26 }}
                 whileHover={{ y: -18, scale: 1.06, rotate: 0 }}
                 onClick={() => selectCard(selected ? null : card)}
+                onPointerDown={() => startHold(card)}
+                onPointerUp={endHold}
+                onPointerLeave={endHold}
+                onPointerCancel={endHold}
                 role="button"
                 tabIndex={0}
                 aria-pressed={selected}

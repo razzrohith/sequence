@@ -20,7 +20,7 @@ import type {
 } from '../../shared/types';
 import { TEAMS } from '../../shared/types';
 import { NetGuest, NetHost, type NetHandlers } from './net';
-import { setHaptics, setMuted, sfx } from './sounds';
+import { setHaptics, setMuted, setVolume, sfx } from './sounds';
 
 export type View = 'home' | 'lobby' | 'game';
 export type Mode = 'online' | 'local';
@@ -38,6 +38,18 @@ export interface LocalSeat {
 
 export interface Prefs {
   sound: boolean;
+  /** 0..1 master volume for the sound engine */
+  volume: number;
+  /** keep your hand ordered automatically */
+  sortHand: 'off' | 'suit' | 'rank';
+  /** tap a cell twice before the chip is committed */
+  confirmPlace: boolean;
+  /** mirror the hand and toolbar for left-handed play */
+  leftHanded: boolean;
+  /** notify me when it becomes my turn and the tab is in the background */
+  notifyTurn: boolean;
+  cardBack: string;
+  chipStyle: string;
   haptics: boolean;
   colorblind: boolean;
   reducedMotion: boolean;
@@ -46,6 +58,20 @@ export interface Prefs {
   difficulty: BotDifficulty;
   boardTheme: string;
 }
+
+export const CARD_BACKS = [
+  { id: 'classic', label: 'Blue' },
+  { id: 'crimson', label: 'Red' },
+  { id: 'forest', label: 'Green' },
+  { id: 'ink', label: 'Ink' },
+];
+
+export const CHIP_STYLES = [
+  { id: 'plastic', label: 'Plastic' },
+  { id: 'glass', label: 'Glass' },
+  { id: 'wood', label: 'Wood' },
+  { id: 'metal', label: 'Metal' },
+];
 
 export const BOARD_THEMES = [
   { id: 'classic', label: 'Silver' },
@@ -137,6 +163,13 @@ function loadPrefs(): Prefs {
   }
   return {
     sound: saved.sound ?? true,
+    volume: typeof saved.volume === 'number' ? saved.volume : 0.8,
+    sortHand: saved.sortHand ?? 'off',
+    confirmPlace: saved.confirmPlace ?? false,
+    leftHanded: saved.leftHanded ?? false,
+    notifyTurn: saved.notifyTurn ?? false,
+    cardBack: saved.cardBack ?? 'classic',
+    chipStyle: saved.chipStyle ?? 'plastic',
     haptics: saved.haptics ?? true,
     colorblind: saved.colorblind ?? false,
     reducedMotion: saved.reducedMotion ?? prefersReducedMotion(),
@@ -211,14 +244,32 @@ function applyBoardTheme(roomTheme: string | undefined, prefTheme: string) {
   }
 }
 
+/** A quiet nudge when it becomes your turn while the tab is in the background.
+ * Never fires while the tab is visible, that is what the sound is for. */
+function notifyMyTurn(enabled: boolean) {
+  if (!enabled) return;
+  try {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') return;
+    const n = new Notification('Sequence', { body: 'It is your turn.', tag: 'seq-turn' });
+    setTimeout(() => n.close(), 8000);
+  } catch {
+    /* notifications unavailable */
+  }
+}
+
 /** Apply prefs that have global side effects (sound engine, colorblind body class). */
 function applyPrefs(p: Prefs, roomTheme?: string) {
   setMuted(!p.sound);
+  setVolume(p.volume ?? 0.8);
   setHaptics(p.haptics);
   try {
     document.body.classList.toggle('colorblind', p.colorblind);
     document.body.classList.toggle('reduce-motion', p.reducedMotion);
     document.body.classList.toggle('high-contrast', p.highContrast);
+    document.body.classList.toggle('left-handed', p.leftHanded);
+    document.body.dataset.cardBack = p.cardBack || 'classic';
+    document.body.dataset.chip = p.chipStyle || 'plastic';
   } catch {
     /* SSR/no-dom */
   }
@@ -267,6 +318,8 @@ interface Store {
   chat: ChatMessage[];
   toasts: Toast[];
   selectedCard: Card | null;
+  /** a card held down to preview its legal cells, without committing to it */
+  previewCard: Card | null;
   /** suggested move; `turn` pins it so it self-expires once the turn moves on */
   hint: { card: Card; r: number; c: number; turn: number } | null;
   /** room code from an invite link, used to prefill the join field */
@@ -300,7 +353,7 @@ interface Store {
   setPref: <K extends keyof Prefs>(key: K, value: Prefs[K]) => void;
   createRoom: () => void;
   quickPlay: (players: number) => void;
-  joinRoom: (code: string) => void;
+  joinRoom: (code: string, password?: string) => void;
   spectate: (code: string) => void;
   leaveRoom: () => void;
   addBot: () => void;
@@ -315,6 +368,13 @@ interface Store {
     randomBoard?: boolean;
     undoMode?: 'off' | 'instant' | 'approval';
     hints?: boolean;
+    firstPlayer?: 'first' | 'random';
+    allowDeadExchange?: boolean;
+    clockSeconds?: number;
+    handicapTeam?: string;
+    handicapExtra?: number;
+    password?: string;
+    teamChat?: boolean;
   }) => void;
   startGame: () => void;
   playMove: (move: Move) => void;
@@ -324,7 +384,9 @@ interface Store {
   requestUndo: () => void;
   respondUndo: (approve: boolean) => void;
   selectCard: (card: Card | null) => void;
+  previewCardSet: (card: Card | null) => void;
   requestHint: () => void;
+  setReady: (v: boolean) => void;
   toast: (text: string, kind?: Toast['kind']) => void;
   dismissToast: (id: number) => void;
   ingestGameState: (game: ClientGameState) => void;
@@ -351,6 +413,7 @@ export const useStore = create<Store>((set, get) => ({
   chat: [],
   toasts: [],
   selectedCard: null,
+  previewCard: null,
   hint: null,
   pendingInvite: INVITE_CODE,
   rejoining: false,
@@ -463,6 +526,7 @@ export const useStore = create<Store>((set, get) => ({
       }
     } else if (isMyTurn && !s.wasMyTurn) {
       sfx.yourTurn();
+      notifyMyTurn(get().prefs.notifyTurn);
     }
 
     set({
@@ -603,7 +667,7 @@ export const useStore = create<Store>((set, get) => ({
     get().startLocal(seats);
   },
 
-  joinRoom(code) {
+  joinRoom(code, password) {
     const { name, playerId, prefs } = get();
     get()._goHome();
     const guest = new NetGuest(
@@ -613,6 +677,7 @@ export const useStore = create<Store>((set, get) => ({
       prefs.avatar,
       false,
       get().netHandlers(),
+      password ?? '',
     );
     set({ net: guest, netKind: 'guest', mode: 'online', chat: [], lastEventSeen: 0, wasMyTurn: false });
     get().toast('Connecting to room…');
@@ -761,7 +826,22 @@ export const useStore = create<Store>((set, get) => ({
 
   selectCard(card) {
     if (card) sfx.select();
-    set({ selectedCard: card, hint: null });
+    set({ selectedCard: card, hint: null, previewCard: null });
+  },
+
+  previewCardSet(card) {
+    set({ previewCard: card });
+  },
+
+  setReady(v) {
+    const s = get();
+    if (s.netKind === 'guest') (s.net as NetGuest).ready(v);
+    else if (s.netKind === 'host') {
+      const h = s.net as NetHost;
+      const me = h.players.find((p) => p.id === s.playerId);
+      if (me) me.ready = v;
+      h.pushRoomPublic();
+    }
   },
 
   requestHint() {

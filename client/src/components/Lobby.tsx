@@ -4,6 +4,7 @@ import { BOARD_THEMES, useStore } from '../store';
 import Rules from './Rules';
 
 const TEAM_LABEL: Record<string, string> = { red: 'Red', blue: 'Blue', green: 'Green' };
+const TEAM_IDS = ['red', 'blue', 'green'] as const;
 
 export default function Lobby() {
   const room = useStore((s) => s.room);
@@ -14,6 +15,7 @@ export default function Lobby() {
   const startGame = useStore((s) => s.startGame);
   const leaveRoom = useStore((s) => s.leaveRoom);
   const toast = useStore((s) => s.toast);
+  const setReady = useStore((s) => s.setReady);
   const [showRules, setShowRules] = useState(false);
   const [lanUrl, setLanUrl] = useState<string | null>(null);
 
@@ -118,6 +120,11 @@ export default function Lobby() {
                   {p.id === playerId && <span className="badge you">YOU</span>}
                 </span>
                 <span className="player-team">{p.team ? TEAM_LABEL[p.team] : '-'}</span>
+                {!room.started && !p.isBot && (
+                  <span className={`ready-dot ${p.ready ? 'on' : ''}`}>
+                    {p.ready ? 'READY' : 'WAITING'}
+                  </span>
+                )}
                 {isHost && p.id !== playerId && !room.started && (
                   <button className="btn-icon" title="Remove" onClick={() => removePlayer(p.id)}>
                     ✕
@@ -127,6 +134,17 @@ export default function Lobby() {
             ))}
           </AnimatePresence>
         </div>
+
+        {!isHost && !room.started && (
+          <button
+            className={`btn ${room.players.find((p) => p.id === playerId)?.ready ? 'btn-secondary' : 'btn-primary'}`}
+            onClick={() =>
+              setReady(!room.players.find((p) => p.id === playerId)?.ready)
+            }
+          >
+            {room.players.find((p) => p.id === playerId)?.ready ? '✓ Ready (tap to undo)' : "I'm ready"}
+          </button>
+        )}
 
         {isHost && (
           <div className="lobby-controls">
@@ -239,6 +257,98 @@ export default function Lobby() {
                 ))}
               </div>
             )}
+
+            <div className="seg seg-wrap">
+              <span className="seg-label">Who starts</span>
+              {(
+                [
+                  ['first', 'First seat'],
+                  ['random', 'Random'],
+                ] as const
+              ).map(([v, lbl]) => (
+                <button
+                  key={v}
+                  className={`seg-btn ${(room.settings.firstPlayer ?? 'first') === v ? 'on' : ''}`}
+                  onClick={() => updateSettings({ firstPlayer: v })}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+
+            <div className="seg seg-wrap">
+              <span className="seg-label">Game clock (each player)</span>
+              {(
+                [
+                  [0, 'Off'],
+                  [300, '5 min'],
+                  [600, '10 min'],
+                  [900, '15 min'],
+                ] as const
+              ).map(([v, lbl]) => (
+                <button
+                  key={v}
+                  className={`seg-btn ${(room.settings.clockSeconds ?? 0) === v ? 'on' : ''}`}
+                  onClick={() => updateSettings({ clockSeconds: v })}
+                >
+                  {lbl}
+                </button>
+              ))}
+              <i className="seg-note">A total time bank for the whole game, not per turn.</i>
+            </div>
+
+            <div className="seg seg-wrap">
+              <span className="seg-label">Handicap</span>
+              <button
+                className={`seg-btn ${!room.settings.handicapTeam ? 'on' : ''}`}
+                onClick={() => updateSettings({ handicapTeam: '', handicapExtra: 0 })}
+              >
+                None
+              </button>
+              {TEAM_IDS.slice(0, room.settings.teamCount).map((t) => (
+                <button
+                  key={t}
+                  className={`seg-btn ${room.settings.handicapTeam === t ? 'on' : ''}`}
+                  onClick={() => updateSettings({ handicapTeam: t, handicapExtra: 1 })}
+                >
+                  {TEAM_LABEL[t]} +1
+                </button>
+              ))}
+              <i className="seg-note">That team must complete one extra sequence to win.</i>
+            </div>
+
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={room.settings.allowDeadExchange !== false}
+                onChange={(e) => updateSettings({ allowDeadExchange: e.target.checked })}
+              />
+              <span>
+                Allow dead-card swaps <i>(trade a card whose spaces are both taken)</i>
+              </span>
+            </label>
+
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={!!room.settings.teamChat}
+                onChange={(e) => updateSettings({ teamChat: e.target.checked })}
+              />
+              <span>
+                Team-only chat <i>(messages go to your team mates only)</i>
+              </span>
+            </label>
+
+            <label className="field pw-field">
+              <span>Room password (optional)</span>
+              <input
+                type="text"
+                maxLength={24}
+                placeholder="leave blank for none"
+                value={room.settings.password ?? ''}
+                onChange={(e) => updateSettings({ password: e.target.value })}
+              />
+            </label>
 
             <label className="check">
               <input

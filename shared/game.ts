@@ -126,7 +126,7 @@ export function createGame(
     deck,
     discard: [],
     players,
-    turn: 0,
+    turn: settings.firstPlayer === 'random' ? Math.floor(rng() * players.length) : 0,
     settings,
     sequences: [],
     // the quick-win override is only offered for 2-team games; clamp it so a
@@ -144,6 +144,10 @@ export function createGame(
     eventCounter: 0,
     rng,
     turnStartedAt: Date.now(),
+    timeBank:
+      (settings.clockSeconds ?? 0) > 0
+        ? Object.fromEntries(players.map((p) => [p.id, (settings.clockSeconds ?? 0) * 1000]))
+        : undefined,
   };
 }
 
@@ -158,6 +162,13 @@ export function defaultSettings(partial: Partial<GameSettings> = {}): GameSettin
     randomBoard: partial.randomBoard,
     undoMode: partial.undoMode ?? 'approval',
     hints: partial.hints ?? true,
+    firstPlayer: partial.firstPlayer ?? 'first',
+    allowDeadExchange: partial.allowDeadExchange ?? true,
+    clockSeconds: partial.clockSeconds ?? 0,
+    handicapTeam: partial.handicapTeam,
+    handicapExtra: partial.handicapExtra,
+    password: partial.password,
+    teamChat: partial.teamChat ?? false,
   };
 }
 
@@ -293,6 +304,12 @@ function detectNewSequences(game: GameCore, team: Team, r: number, c: number): S
   return found;
 }
 
+/** Sequences this team needs to win, including any handicap on them. */
+export function requiredFor(game: GameCore, team: Team): number {
+  const extra = game.settings.handicapTeam === team ? (game.settings.handicapExtra ?? 0) : 0;
+  return game.required + Math.max(0, extra);
+}
+
 function teamSequenceCount(game: GameCore, team: Team): number {
   return game.sequences.filter((s) => s.team === team).length;
 }
@@ -303,6 +320,14 @@ function teamSequenceCount(game: GameCore, team: Team): number {
 const DEAD_POSITION_TURNS = 400;
 
 function advanceTurn(game: GameCore) {
+  // chess clock: bill the turn that just ended to the player who had it
+  if (game.timeBank) {
+    const finished = game.players[game.turn];
+    if (finished) {
+      const spent = Math.max(0, Date.now() - (game.turnStartedAt ?? Date.now()));
+      game.timeBank[finished.id] = Math.max(0, (game.timeBank[finished.id] ?? 0) - spent);
+    }
+  }
   game.turn = (game.turn + 1) % game.players.length;
   game.deadExchangedThisTurn = false;
   game.turnStartedAt = Date.now();
@@ -386,6 +411,8 @@ export function applyMove(game: GameCore, playerId: string, move: Move): ApplyRe
 
   switch (move.type) {
     case 'exchangeDead': {
+      if (game.settings.allowDeadExchange === false)
+        return { ok: false, error: 'Swapping dead cards is turned off for this game.' };
       if (game.deadExchangedThisTurn)
         return { ok: false, error: 'You can only exchange one dead card per turn.' };
       if (!player.hand.includes(move.card)) return { ok: false, error: 'Card not in hand.' };
@@ -438,7 +465,7 @@ export function applyMove(game: GameCore, playerId: string, move: Move): ApplyRe
         }),
       );
       if (newSeqs.length > 0) game.turnsWithoutSequence = 0;
-      if (teamSequenceCount(game, player.team) >= game.required) {
+      if (teamSequenceCount(game, player.team) >= requiredFor(game, player.team)) {
         game.winner = player.team;
       } else {
         advanceTurn(game);
@@ -507,7 +534,7 @@ export function forceLegalMove(game: GameCore, player: ServerPlayer): Move {
       return isOneEyed(card) ? { type: 'remove', card, r, c } : { type: 'place', card, r, c };
     }
   }
-  if (!game.deadExchangedThisTurn) {
+  if (!game.deadExchangedThisTurn && game.settings.allowDeadExchange !== false) {
     const dead = player.hand.find((c) => isDeadCard(game, c));
     if (dead) return { type: 'exchangeDead', card: dead };
   }
@@ -518,8 +545,15 @@ export function toClientState(game: GameCore, playerId: string): ClientGameState
   const you = game.players.find((p) => p.id === playerId);
   const secs = game.settings.turnSeconds ?? 0;
   const over = !!game.winner || game.stalemate;
-  const turnDeadline =
-    secs > 0 && !over && game.turnStartedAt ? game.turnStartedAt + secs * 1000 : null;
+  // the turn ends at whichever comes first: the per-turn timer, or the player
+  // running out of their game clock
+  const started = game.turnStartedAt ?? Date.now();
+  const current = game.players[game.turn];
+  const bank = game.timeBank && current ? (game.timeBank[current.id] ?? 0) : null;
+  const ends: number[] = [];
+  if (secs > 0) ends.push(started + secs * 1000);
+  if (bank !== null) ends.push(started + bank);
+  const turnDeadline = !over && ends.length > 0 ? Math.min(...ends) : null;
   return {
     board: game.board,
     layout: game.layout,
@@ -547,6 +581,7 @@ export function toClientState(game: GameCore, playerId: string): ClientGameState
     yourPendingDraws: game.pendingDraws[playerId] ?? 0,
     log: game.log.slice(-20),
     turnDeadline,
+    timeBank: game.timeBank ? { ...game.timeBank } : undefined,
   };
 }
 

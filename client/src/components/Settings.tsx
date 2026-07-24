@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { AVATARS, BOARD_THEMES, useStore } from '../store';
+import { AVATARS, BOARD_THEMES, CARD_BACKS, CHIP_STYLES, useStore } from '../store';
 import { sfx } from '../sounds';
 
 function Toggle({
@@ -83,6 +83,22 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         </div>
 
         <Toggle on={prefs.sound} onChange={(v) => setPref('sound', v)} label="Sound effects" />
+        {prefs.sound && (
+          <label className="setting-row">
+            <span>
+              <b>Volume</b>
+              <i>{Math.round((prefs.volume ?? 0.8) * 100)}%</i>
+            </span>
+            <input
+              className="slider"
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round((prefs.volume ?? 0.8) * 100)}
+              onChange={(e) => setPref('volume', Number(e.target.value) / 100)}
+            />
+          </label>
+        )}
         <Toggle
           on={prefs.haptics}
           onChange={(v) => setPref('haptics', v)}
@@ -107,6 +123,86 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           label="High contrast"
           hint="bolder outlines and text for readability"
         />
+
+        <div className="setting-group">
+          <span className="setting-label">Keep my hand sorted</span>
+          <div className="seg">
+            {(
+              [
+                ['off', 'Off'],
+                ['suit', 'By suit'],
+                ['rank', 'By rank'],
+              ] as const
+            ).map(([v, lbl]) => (
+              <button
+                key={v}
+                className={`seg-btn ${(prefs.sortHand ?? 'off') === v ? 'on' : ''}`}
+                onClick={() => setPref('sortHand', v)}
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Toggle
+          on={prefs.confirmPlace}
+          onChange={(v) => setPref('confirmPlace', v)}
+          label="Confirm before placing"
+          hint="tap a space twice, so a mis-tap never burns a card"
+        />
+        <Toggle
+          on={prefs.leftHanded}
+          onChange={(v) => setPref('leftHanded', v)}
+          label="Left-handed layout"
+          hint="mirrors the hand and toolbar"
+        />
+        <Toggle
+          on={prefs.notifyTurn}
+          onChange={async (v) => {
+            // only store it once the browser has actually granted permission
+            if (v && typeof Notification !== 'undefined') {
+              const perm =
+                Notification.permission === 'granted'
+                  ? 'granted'
+                  : await Notification.requestPermission();
+              if (perm !== 'granted') return;
+            }
+            setPref('notifyTurn', v);
+          }}
+          label="Notify me on my turn"
+          hint="a browser notification when the tab is in the background"
+        />
+
+        <div className="setting-group">
+          <span className="setting-label">Card backs</span>
+          <div className="seg">
+            {CARD_BACKS.map((b) => (
+              <button
+                key={b.id}
+                className={`seg-btn ${(prefs.cardBack ?? 'classic') === b.id ? 'on' : ''}`}
+                onClick={() => setPref('cardBack', b.id)}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="setting-group">
+          <span className="setting-label">Chips</span>
+          <div className="seg">
+            {CHIP_STYLES.map((c) => (
+              <button
+                key={c.id}
+                className={`seg-btn ${(prefs.chipStyle ?? 'plastic') === c.id ? 'on' : ''}`}
+                onClick={() => setPref('chipStyle', c.id)}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="setting-group">
           <span className="setting-label">AI difficulty (solo &amp; quick play)</span>
