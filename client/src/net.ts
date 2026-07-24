@@ -438,6 +438,7 @@ export class NetHost {
     strictDraw?: boolean;
     botDifficulty?: string;
     turnSeconds?: number;
+    winSequences?: number;
   }) {
     if (this.started) return;
     if (s.teamCount === 2 || s.teamCount === 3) this.settings.teamCount = s.teamCount;
@@ -445,6 +446,7 @@ export class NetHost {
     if (s.botDifficulty === 'easy' || s.botDifficulty === 'medium' || s.botDifficulty === 'hard')
       this.settings.botDifficulty = s.botDifficulty;
     if (typeof s.turnSeconds === 'number') this.settings.turnSeconds = s.turnSeconds;
+    if (s.winSequences === 1 || s.winSequences === 2) this.settings.winSequences = s.winSequences;
     this.pushRoom();
   }
   start(): string | null {

@@ -94,6 +94,27 @@ console.log('\nRule unit tests:');
 assert(freshGame(2, 2).required === 2, '2 teams require 2 sequences');
 assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
 
+// quick-win variant: winSequences overrides the default requirement
+{
+  const players = [0, 1].map((i) => ({
+    id: `p${i}`,
+    name: `P${i}`,
+    isBot: true,
+    team: TEAMS[i % 2],
+  }));
+  const g = createGame(players, { teamCount: 2, strictDraw: false, winSequences: 1 } as never);
+  assert(g.required === 1, 'quick-win: winSequences=1 overrides the 2-sequence default');
+  setChips(g, 'red', [
+    [2, 2],
+    [2, 3],
+    [2, 4],
+    [2, 5],
+  ]);
+  giveHand(g, 0, ['6D']); // BOARD_LAYOUT[2][6] === '6D'
+  applyMove(g, 'p0', { type: 'place', card: '6D', r: 2, c: 6 });
+  assert(g.winner === 'red', 'quick-win: a single sequence wins immediately');
+}
+
 // normal card: exactly its two printed cells are legal
 {
   const g = freshGame();

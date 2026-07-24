@@ -171,6 +171,24 @@ export default function Lobby() {
               ))}
             </div>
 
+            {room.settings.teamCount === 2 && (
+              <div className="seg">
+                <span className="seg-label">Sequences to win</span>
+                {[
+                  [1, '1 — quick'],
+                  [2, '2 — standard'],
+                ].map(([v, lbl]) => (
+                  <button
+                    key={v}
+                    className={`seg-btn ${(room.settings.winSequences ?? 2) === v ? 'on' : ''}`}
+                    onClick={() => updateSettings({ winSequences: v as number })}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <label className="check">
               <input
                 type="checkbox"

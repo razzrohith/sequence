@@ -288,6 +288,7 @@ interface Store {
     strictDraw?: boolean;
     botDifficulty?: BotDifficulty;
     turnSeconds?: number;
+    winSequences?: number;
   }) => void;
   startGame: () => void;
   playMove: (move: Move) => void;

@@ -45,6 +45,8 @@ export interface GameSettings {
   botDifficulty: BotDifficulty;
   /** seconds allowed per turn before auto-play; 0 = no timer */
   turnSeconds: number;
+  /** sequences needed to win; omit for the official default (2 teams → 2, 3 teams → 1) */
+  winSequences?: number;
 }
 
 export interface SequenceRecord {

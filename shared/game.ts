@@ -126,7 +126,7 @@ export function createGame(
     turn: 0,
     settings,
     sequences: [],
-    required: settings.teamCount === 2 ? 2 : 1,
+    required: settings.winSequences ?? (settings.teamCount === 2 ? 2 : 1),
     winner: null,
     stalemate: false,
     turnsWithoutSequence: 0,
@@ -146,6 +146,7 @@ export function defaultSettings(partial: Partial<GameSettings> = {}): GameSettin
     strictDraw: partial.strictDraw ?? false,
     botDifficulty: partial.botDifficulty ?? 'medium',
     turnSeconds: partial.turnSeconds ?? 0,
+    winSequences: partial.winSequences,
   };
 }
 
