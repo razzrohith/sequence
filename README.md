@@ -68,3 +68,25 @@ Two independent layers keep the game honest:
 - Rooms with 5-letter join codes, chat, reconnect after refresh, AI autopilot for
   players who drop, rematch with rotated seating
 - Heuristic AI bots that build lines, block threats and value their Jacks
+
+## Known limitations (online play)
+
+Online multiplayer is deliberately **serverless and free** — clients relay through a
+public MQTT broker, and one player's browser runs the authoritative game engine.
+That choice has real trade-offs worth knowing:
+
+- **The room code is the only secret.** Anyone who learns the 5-character code can
+  subscribe to the room's topics on the public broker, observe traffic, and publish
+  messages claiming to be another player. Treat codes as private; don't post them
+  publicly.
+- **The host — and the designated heir — hold the full game state.** The host runs
+  the engine, so its browser necessarily holds every player's hand. Host migration
+  requires the heir to keep a full snapshot so it can take over instantly, so the
+  heir holds it too. Ordinary state updates *are* redacted per player (each player
+  is sent only their own hand), but a determined host or heir could inspect the
+  rest. **This is not cheat-proof for competitive play.**
+
+Closing these properly needs either a real server or end-to-end encryption between
+players, both of which conflict with the zero-hosting-cost goal. For casual games
+with people you know, the current design is fine — just don't treat it as
+tournament-grade.
