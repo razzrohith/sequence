@@ -1,4 +1,4 @@
-// Tiny WebAudio synth — no audio assets needed.
+// Tiny WebAudio synth, no audio assets needed.
 
 let ctx: AudioContext | null = null;
 let muted = false;

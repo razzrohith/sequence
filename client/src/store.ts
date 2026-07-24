@@ -85,7 +85,7 @@ let toastId = 0;
 let emoteId = 0;
 const toastTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
-/** localStorage throws in some privacy modes / insecure contexts — never let
+/** localStorage throws in some privacy modes / insecure contexts, never let
  * that crash the app; fall back to an in-memory map. */
 const memStore: Record<string, string> = {};
 const LS = {
@@ -253,7 +253,7 @@ function getPlayerId(): string {
 }
 
 interface Store {
-  /** online multiplayer relays through a public message broker — no server to host */
+  /** online multiplayer relays through a public message broker, no server to host */
   net: NetHost | NetGuest | null;
   netKind: 'host' | 'guest' | null;
   connected: boolean;
@@ -428,7 +428,7 @@ export const useStore = create<Store>((set, get) => ({
       } else if (e.kind === 'forfeitDraw') {
         get().toast(
           mine
-            ? 'You forgot to draw — card forfeited!'
+            ? 'You forgot to draw, card forfeited!'
             : `${e.playerName} forgot to draw and forfeited a card`,
           mine ? 'error' : 'info',
         );
@@ -474,7 +474,7 @@ export const useStore = create<Store>((set, get) => ({
 
   init() {
     // Online multiplayer is peer-to-peer (WebRTC) and established on demand when
-    // a room is created or joined — nothing to connect up front. Pass & Play and
+    // a room is created or joined, nothing to connect up front. Pass & Play and
     // vs-computer are fully local.
   },
 
@@ -521,7 +521,7 @@ export const useStore = create<Store>((set, get) => ({
         get()._goHome();
       },
       onBecomeHost: (code, snap) => {
-        // the host left and we're the heir — take over hosting on the same code
+        // the host left and we're the heir, take over hosting on the same code
         const { name, playerId, prefs } = get();
         const host = new NetHost(
           playerId,
@@ -531,7 +531,7 @@ export const useStore = create<Store>((set, get) => ({
           { code, snap },
         );
         set({ net: host, netKind: 'host' });
-        get().toast("The host left — you're hosting now, game continues.", 'gold');
+        get().toast("The host left, you're hosting now, game continues.", 'gold');
       },
     };
   },
@@ -545,7 +545,7 @@ export const useStore = create<Store>((set, get) => ({
         /* ignore */
       }
     }
-    // stop the local game loop — otherwise bots keep playing in the background
+    // stop the local game loop, otherwise bots keep playing in the background
     if (s.localBotTimer) clearTimeout(s.localBotTimer);
     set({
       net: null,
@@ -677,7 +677,7 @@ export const useStore = create<Store>((set, get) => ({
   },
   requestUndo() {
     const s = get();
-    // on-device games take the move back immediately — there's nobody to ask
+    // on-device games take the move back immediately, there's nobody to ask
     if (s.mode === 'local') {
       if (!s.localUndo) {
         get().toast('Nothing to take back.', 'info');
@@ -797,7 +797,7 @@ export const useStore = create<Store>((set, get) => ({
       get().toast('Hint: exchange your dead card', 'info');
     } else {
       set({ hint: null });
-      get().toast('No legal move — you can pass.', 'info');
+      get().toast('No legal move, you can pass.', 'info');
     }
   },
 
@@ -923,7 +923,7 @@ export const useStore = create<Store>((set, get) => ({
         const mv = chooseBotMove(c, p);
         const res = applyMove(c, p.id, mv);
         if (!res.ok) {
-          // failsafe: a guaranteed-legal move, then pass — never leave it stuck
+          // failsafe: a guaranteed-legal move, then pass, never leave it stuck
           const forced = forceLegalMove(c, p);
           if (!applyMove(c, p.id, forced).ok) applyMove(c, p.id, { type: 'pass' });
         }

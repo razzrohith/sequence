@@ -15,7 +15,7 @@ function Recap() {
     game.board.flat().filter((c) => c.chip === t).length;
   const seqs = (t: Team) => game.sequences.filter((s) => s.team === t).length;
   // NB: game.log is truncated to the last 20 events, so it can't be counted for
-  // a whole-game total — read the board instead, which is always complete.
+  // a whole-game total, read the board instead, which is always complete.
   const chipsPlaced = game.board.flat().filter((c) => c.chip).length;
 
   return (
@@ -121,8 +121,8 @@ export default function WinOverlay() {
           {winner
             ? won
               ? 'Brilliant! Your team completed the sequences. 🏆'
-              : 'So close — run it back?'
-            : 'Every hand is empty — nobody can move. Rare!'}
+              : 'So close! Run it back?'
+            : 'Every hand is empty. Nobody can move. Rare!'}
         </p>
 
         <Recap />

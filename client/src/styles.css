@@ -1066,7 +1066,7 @@ input:focus {
      is one tenth of it, and all card typography scales from that. */
   --card-ar: 1.4;
   --board-size: min(calc(100vw - 580px), calc((100vh - 300px) / 1.55), 560px);
-  /* board frame color — overridden per theme via body[data-board] */
+  /* board frame color, overridden per theme via body[data-board] */
   --frame-bg: linear-gradient(165deg, #d3d6d4 0%, #bdc1bf 45%, #c9cdcb 70%, #b3b7b5 100%);
   --frame-ink: rgba(255, 255, 255, 0.92);
   position: relative;
@@ -1163,7 +1163,7 @@ body[data-board='ocean'] .board-frame {
 .cell {
   position: relative;
   background: #fdfdfb;
-  /* a % radius would go elliptical on a non-square cell — scale from cell width */
+  /* a % radius would go elliptical on a non-square cell, scale from cell width */
   border-radius: calc(var(--board-size) / 10 * 0.1);
   cursor: default;
   overflow: hidden;
@@ -1452,7 +1452,7 @@ body.high-contrast .cf-mid-rank {
     opacity: 0.85;
   }
 }
-/* Hint action button — floats like .undo-btn so it never affects board layout */
+/* Hint action button, floats like .undo-btn so it never affects board layout */
 .hint-btn {
   position: fixed;
   left: 50%;
@@ -2157,7 +2157,7 @@ body.colorblind .chip-star {
   display: block;
 }
 
-/* ===== HAND — "Color Pop": bold rank, suit-colour corner wedge ===== */
+/* ===== HAND, "Color Pop": bold rank, suit-colour corner wedge ===== */
 .cardface.v-hand {
   border-radius: 9px;
   font-size: 13px;
@@ -2217,7 +2217,7 @@ body.colorblind .chip-star {
   margin-top: 0.08em;
 }
 
-/* jacks are the wild/remove cards — show a joker + one/two-eyed power in hand */
+/* jacks are the wild/remove cards, show a joker + one/two-eyed power in hand */
 .jester {
   display: block;
   fill: currentColor;
@@ -2259,7 +2259,7 @@ body.colorblind .chip-star {
   color: #fee2e2;
 }
 
-/* ===== BOARD — vintage aged-paper deck with real court art ===== */
+/* ===== BOARD, vintage aged-paper deck with real court art ===== */
 .cardface.v-cell {
   border-radius: calc(var(--board-size) / 10 * 0.1);
   background: linear-gradient(158deg, #ece2cb 0%, #e2d6b8 100%);
@@ -2523,7 +2523,7 @@ body.colorblind .chip-star {
   z-index: 90;
 }
 
-/* mobile bottom toolbar (in-flow — never floats over the board/hand) */
+/* mobile bottom toolbar (in-flow, never floats over the board/hand) */
 .mobile-bar {
   display: none;
 }
@@ -2713,7 +2713,7 @@ body.colorblind .chip-star {
     padding: 10px;
     box-shadow: var(--shadow-lg);
     z-index: 95;
-    /* ~50 emotes won't fit on a phone screen — scroll inside the panel */
+    /* ~50 emotes won't fit on a phone screen, scroll inside the panel */
     max-height: 44vh;
     overflow-y: auto;
   }
@@ -2883,7 +2883,7 @@ body.colorblind .chip-star {
     align-items: flex-start;
     overflow-y: auto;
   }
-  /* the sound toggle lives in Settings on mobile — declutter the game header */
+  /* the sound toggle lives in Settings on mobile, declutter the game header */
   .gh-right .btn-icon[title='Sound'] {
     display: none;
   }
@@ -2892,7 +2892,7 @@ body.colorblind .chip-star {
   }
 }
 
-/* landscape phones: the game is designed portrait — ask for a rotate */
+/* landscape phones: the game is designed portrait, ask for a rotate */
 .rotate-overlay {
   display: none;
   position: fixed;

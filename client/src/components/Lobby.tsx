@@ -85,7 +85,7 @@ export default function Lobby() {
             className="lan-info"
             onClick={async () => {
               try {
-                await navigator.clipboard.writeText(`${lanUrl} — room code ${room.code}`);
+                await navigator.clipboard.writeText(`${lanUrl} (room code ${room.code})`);
                 toast('Join link copied!');
               } catch {
                 /* clipboard unavailable */
@@ -117,7 +117,7 @@ export default function Lobby() {
                   {p.isBot && <span className="badge bot">AI</span>}
                   {p.id === playerId && <span className="badge you">YOU</span>}
                 </span>
-                <span className="player-team">{p.team ? TEAM_LABEL[p.team] : '—'}</span>
+                <span className="player-team">{p.team ? TEAM_LABEL[p.team] : '-'}</span>
                 {isHost && p.id !== playerId && !room.started && (
                   <button className="btn-icon" title="Remove" onClick={() => removePlayer(p.id)}>
                     ✕
@@ -204,8 +204,8 @@ export default function Lobby() {
               <div className="seg">
                 <span className="seg-label">Sequences to win</span>
                 {[
-                  [1, '1 — quick'],
-                  [2, '2 — standard'],
+                  [1, '1 (quick)'],
+                  [2, '2 (standard)'],
                 ].map(([v, lbl]) => (
                   <button
                     key={v}
@@ -237,8 +237,8 @@ export default function Lobby() {
 
         <div className={`count-status ${validCount ? 'ok' : 'bad'}`}>
           {validCount
-            ? `${n} player${n > 1 ? 's' : ''} — ${room.settings.teamCount} teams, ready to deal`
-            : `Need ${room.validCounts.join(' / ')} players (currently ${n}) — add bots or friends`}
+            ? `${n} player${n > 1 ? 's' : ''}, ${room.settings.teamCount} teams, ready to deal`
+            : `Need ${room.validCounts.join(' / ')} players (currently ${n}). Add bots or friends`}
         </div>
 
         <div className="lobby-actions">

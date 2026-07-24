@@ -193,11 +193,11 @@ export default function Game() {
           <TurnTimer />
           <div className={`gh-turn ${myTurn ? 'mine' : ''}`}>
             {spectating
-              ? `👁 Spectating — ${over ? 'game over' : `${current?.name}'s turn`}`
+              ? `👁 Spectating: ${over ? 'game over' : `${current?.name}'s turn`}`
               : over
                 ? 'Game over'
                 : myTurn
-                  ? '✦ YOUR TURN — play a card'
+                  ? '✦ YOUR TURN: play a card'
                   : `${current?.name}'s turn…`}
           </div>
         </div>
@@ -225,7 +225,7 @@ export default function Game() {
           <MobileStrip />
           <Board />
           {spectating ? (
-            <div className="spectator-note">👁 You're spectating — {game.spectatorCount ?? 1} watching</div>
+            <div className="spectator-note">👁 You're spectating. {game.spectatorCount ?? 1} watching</div>
           ) : (
             <Hand />
           )}
@@ -267,7 +267,7 @@ export default function Game() {
               <span className="handoff-icon">🤝</span>
               <h2>Pass the device to</h2>
               <div className="handoff-name">{handoffName}</div>
-              <p>Tap anywhere when ready — no peeking!</p>
+              <p>Tap anywhere when ready. No peeking!</p>
             </motion.div>
           </motion.div>
         )}

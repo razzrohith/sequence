@@ -16,7 +16,7 @@ export default function Rules({ onClose }: { onClose: () => void }) {
         <h2>How to play Sequence</h2>
         <ul>
           <li>
-            <b>Goal:</b> make a <b>sequence</b> — five chips of your team's color in a row
+            <b>Goal:</b> make a <b>sequence</b>: five chips of your team's color in a row
             (horizontal, vertical or diagonal). <b>2 teams need 2 sequences</b> to win,{' '}
             <b>3 teams need 1</b>.
           </li>
@@ -25,7 +25,7 @@ export default function Rules({ onClose }: { onClose: () => void }) {
             spaces on the board, then a new card is drawn for you.
           </li>
           <li>
-            <b>Corners are free</b> — they count for everyone, so a sequence touching a corner
+            <b>Corners are free.</b> They count for everyone, so a sequence touching a corner
             only needs 4 chips.
           </li>
           <li>
@@ -37,7 +37,7 @@ export default function Rules({ onClose }: { onClose: () => void }) {
           </li>
           <li>
             <b>Dead card:</b> if both spaces for a card are covered, exchange it for a new card
-            (once per turn) — click the card and choose <i>Exchange</i>.
+            (once per turn). Click the card and choose <i>Exchange</i>.
           </li>
           <li>
             <b>Strict draw (optional):</b> you must click the deck to draw after playing. If the

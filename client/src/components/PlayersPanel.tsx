@@ -13,7 +13,7 @@ export default function PlayersPanel() {
 
   return (
     <div className="panel players-panel">
-      <div className="panel-title">Teams — first to {game.required} sequence{game.required > 1 ? 's' : ''}</div>
+      <div className="panel-title">Teams: first to {game.required} sequence{game.required > 1 ? 's' : ''}</div>
 
       <div className="team-scores">
         {teams.map((t) => (
@@ -73,7 +73,7 @@ export default function PlayersPanel() {
                 {e.kind === 'exchangeDead' && 'exchanged a dead card'}
                 {e.kind === 'pass' && 'passed'}
                 {e.kind === 'forfeitDraw' && 'forfeited a draw!'}
-                {e.newSequences && e.newSequences.length > 0 && ' — SEQUENCE!'}
+                {e.newSequences && e.newSequences.length > 0 && ' SEQUENCE!'}
               </span>
             </div>
           ))}

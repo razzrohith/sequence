@@ -50,21 +50,21 @@ export interface NetHandlers {
   onKicked: () => void;
   onJoined: (code: string, spectator: boolean) => void;
   onClosed: (reason: string) => void;
-  /** the host left and this client is the heir — become the new host */
+  /** the host left and this client is the heir, become the new host */
   onBecomeHost: (code: string, snap: HostSnapshot) => void;
 }
 
 // Public MQTT-over-WebSocket brokers (tried in order). No account required.
 // Public MQTT-over-WebSocket brokers (no account needed). The room code's first
 // letter records which broker the host is on, so guests connect to the same one
-// — this gives transparent failover if a broker is unreachable.
+//, this gives transparent failover if a broker is unreachable.
 const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
 const BROKER_PREFIX = ['E', 'H']; // one letter per broker, part of the room code
 const TOPIC = 'seqrz2';
 const QOS = 1 as const;
 /** How long the heir waits after a host's Last-Will before taking over. The will
  * also fires on a transient drop, and the host auto-reconnects (reconnectPeriod
- * 2000ms) and re-announces — this grace stops a blip creating two hosts. */
+ * 2000ms) and re-announces, this grace stops a blip creating two hosts. */
 const HOST_GONE_GRACE_MS = 5000;
 
 function mqttOptions(pid: string, will: { topic: string; payload: string }) {
@@ -215,7 +215,7 @@ export class NetHost {
       }
       this.connectBroker();
     };
-    // a seeded (migrated) host must stay on the code's own broker — don't fail over
+    // a seeded (migrated) host must stay on the code's own broker, don't fail over
     const failTimer = this.seeded ? null : setTimeout(failover, 9500);
     this.client.on('connect', () => {
       settled = true;
@@ -246,7 +246,7 @@ export class NetHost {
     this.client.on('error', () => {
       if (this.opened) return;
       // A migrated (seeded) host is pinned to the broker encoded in its room
-      // code's first letter — guests resolve the broker from that letter alone.
+      // code's first letter, guests resolve the broker from that letter alone.
       // Switching brokers here would keep the code but move the host, silently
       // orphaning every guest, so surface the failure instead of failing over.
       if (this.seeded) {
@@ -381,7 +381,7 @@ export class NetHost {
     };
   }
 
-  /** The connected human player (not the host) with the lowest seat — becomes
+  /** The connected human player (not the host) with the lowest seat, becomes
    * host if the current host leaves. */
   private heirId(): string | null {
     const heir = this.players.find((p) => !p.isBot && p.connected && p.id !== this.hostId);
@@ -704,7 +704,7 @@ export class NetGuest {
   private lastRoom: RoomInfo | null = null;
   private lastFull: HostSnapshot | null = null;
   private migrating = false;
-  /** bumped on every host broadcast — proof the host is still alive */
+  /** bumped on every host broadcast, proof the host is still alive */
   private hostMsgSeq = 0;
   /** every pending timer, so destroy() can't leave one to fire into a later room */
   private timers: Array<ReturnType<typeof setTimeout>> = [];
@@ -814,13 +814,13 @@ export class NetGuest {
     const heir = room?.players.find((p) => !p.isBot && p.connected && p.id !== room.hostId);
     if (heir && heir.id === this.playerId && this.lastFull) {
       // I'm the heir. The broker also publishes this will on a TRANSIENT host
-      // drop (wifi blip, laptop sleep, clientId session takeover) — the host
+      // drop (wifi blip, laptop sleep, clientId session takeover), the host
       // auto-reconnects and re-announces. Promoting immediately would leave two
       // authoritative engines on one room code, so wait and see if it speaks again.
       const seqAtGone = this.hostMsgSeq;
       this.later(() => {
         if (this.hostMsgSeq !== seqAtGone) {
-          this.migrating = false; // the host came back — it never really left
+          this.migrating = false; // the host came back, it never really left
           return;
         }
         try {
@@ -854,7 +854,7 @@ export class NetGuest {
   }
   destroy() {
     this.send({ t: 'bye' });
-    // drop pending retries/timeouts first — otherwise a stale "Room not found"
+    // drop pending retries/timeouts first, otherwise a stale "Room not found"
     // or "The room closed" can fire later and evict the user from another room
     this.clearTimers();
     this.settled = true;

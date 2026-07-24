@@ -202,7 +202,7 @@ async function driveToEnd(ref: Client, byId: Record<string, Client>, tag: string
     const client = byId[cur];
     const before = ref.lastMoveN();
     if (!client) {
-      // current player is a server-driven bot (or an autopiloted seat) —
+      // current player is a server-driven bot (or an autopiloted seat) -
       // wait for the server to advance the turn rather than driving it here
       const progressed = await waitFor(() => ref.lastMoveN() > before || over(), 6000);
       if (!progressed) {

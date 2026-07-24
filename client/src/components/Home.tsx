@@ -45,7 +45,7 @@ export default function Home() {
             <span>♣</span>
           </span>
           <h1>SEQUENCE</h1>
-          <p className="tagline">five in a row wins — an exciting game of strategy</p>
+          <p className="tagline">Five in a row wins</p>
         </div>
 
         <div className="name-row">
@@ -171,7 +171,7 @@ export default function Home() {
 
         {serverProbed && !connected && (
           <p className="hint offline-hint">
-            No game server here — “Play with friends” needs one. <b>Vs computer</b> and{' '}
+            No game server here, so “Play with friends” needs one. <b>Vs computer</b> and{' '}
             <b>Pass &amp; Play</b> work right now.
           </p>
         )}

@@ -21,7 +21,7 @@ export default function Hand() {
     myTurn &&
     me &&
     hand.every((card) => legalCellsOnBoard(game.board, me.team, card).length === 0);
-  // exchanging a dead card is optional — offer it, but never block the pass
+  // exchanging a dead card is optional, offer it, but never block the pass
   const canExchange =
     noLegalMoves &&
     !game.deadExchangedThisTurn &&
@@ -70,7 +70,7 @@ export default function Hand() {
 
       <div
         className={`hand ${myTurn ? 'my-turn' : ''}`}
-        /* keyed by viewer so a pass-and-play handoff swaps hands instantly —
+        /* keyed by viewer so a pass-and-play handoff swaps hands instantly -
            no exit animation that could flash the previous player's cards */
         key={game.yourId}
         style={{ ['--n' as string]: hand.length } as React.CSSProperties}
@@ -142,7 +142,7 @@ export default function Hand() {
           <div className="stuck-actions">
             {canExchange && <span className="exchange-hint">Tap a dead card to exchange ↻</span>}
             <button className="btn btn-secondary" onClick={() => playMove({ type: 'pass' })}>
-              No moves — pass
+              No moves, pass
             </button>
           </div>
         )}

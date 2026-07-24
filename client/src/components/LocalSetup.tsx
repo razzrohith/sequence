@@ -37,7 +37,7 @@ export default function LocalSetup({ onClose }: { onClose: () => void }) {
         </button>
         <h2>Pass &amp; Play</h2>
         <p className="ls-sub">
-          Everyone shares this device — hands stay hidden with a pass-the-device screen between
+          Everyone shares this device. Hands stay hidden with a pass-the-device screen between
           turns. {teams}.
         </p>
 

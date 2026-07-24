@@ -234,7 +234,7 @@ io.on('connection', (socket: Socket) => {
     'createRoom',
     safe((p) => {
       if (!rateOk(socket.id, 'create', 5, 10_000)) return fail('Slow down a moment.');
-      if (roomCount() >= MAX_ROOMS) return fail('The server is at capacity — try again shortly.');
+      if (roomCount() >= MAX_ROOMS) return fail('The server is at capacity, try again shortly.');
       const playerId = asStr(p.playerId, 64) || randomUUID();
       leaveCurrent();
       const token = randomUUID();
@@ -251,7 +251,7 @@ io.on('connection', (socket: Socket) => {
     'quickPlay',
     safe((p) => {
       if (!rateOk(socket.id, 'create', 5, 10_000)) return fail('Slow down a moment.');
-      if (roomCount() >= MAX_ROOMS) return fail('The server is at capacity — try again shortly.');
+      if (roomCount() >= MAX_ROOMS) return fail('The server is at capacity, try again shortly.');
       const players = isIntIn(p.players, 2, 7) && [2, 3, 4, 6].includes(p.players) ? p.players : 2;
       const playerId = asStr(p.playerId, 64) || randomUUID();
       leaveCurrent();
@@ -284,7 +284,7 @@ io.on('connection', (socket: Socket) => {
       const existing = room.players.find((pl) => pl.id === playerId);
       if (existing) {
         // reclaiming a seat: if it has a secret and is actively held by someone
-        // else, require the matching token — prevents seat hijacking
+        // else, require the matching token, prevents seat hijacking
         if (existing.token && existing.connected && existing.socketId !== socket.id) {
           if (token !== existing.token) return fail('That seat is already taken.');
         }
@@ -513,7 +513,7 @@ io.on('connection', (socket: Socket) => {
       );
       const me = room.players.find((pl) => pl.id === ctx.playerId);
       if (humanOpponents.length === 0) {
-        // solo vs bots — no one to approve, so undo immediately
+        // solo vs bots, no one to approve, so undo immediately
         if (restoreSnapshot(room)) {
           touchRoom(room);
           afterGameChange(room);
@@ -596,7 +596,7 @@ io.on('connection', (socket: Socket) => {
     if (!ctx?.playerId) return;
     const player = room.players.find((p) => p.id === ctx.playerId);
     if (!player) return;
-    // a newer connection already owns this seat (second tab) — ignore stale close
+    // a newer connection already owns this seat (second tab), ignore stale close
     if (player.socketId && player.socketId !== socket.id) return;
     // hand off to another live socket for the same player if one exists
     for (const [sid, c] of ctxOf) {

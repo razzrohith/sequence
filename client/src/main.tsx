@@ -1,4 +1,4 @@
-import './earlyGuard'; // MUST be first — registers crash guards before other imports run
+import './earlyGuard'; // MUST be first, registers crash guards before other imports run
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';

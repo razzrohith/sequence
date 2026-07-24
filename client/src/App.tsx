@@ -17,7 +17,7 @@ export default function App() {
     init();
   }, [init]);
 
-  // NOTE: view switching deliberately animates on entry only — an exit-blocking
+  // NOTE: view switching deliberately animates on entry only, an exit-blocking
   // AnimatePresence (mode="wait") can stall forever in a backgrounded tab
   // where requestAnimationFrame is throttled.
   return (

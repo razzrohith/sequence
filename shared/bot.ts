@@ -129,7 +129,7 @@ export function chooseBotMove(
   const team = player.team;
   const tune = DIFFICULTY[difficulty] ?? DIFFICULTY.medium;
 
-  // 1) exchange a dead card if we have one (free value) — hard/medium always do;
+  // 1) exchange a dead card if we have one (free value), hard/medium always do;
   // easy sometimes skips it (more human-like weak play)
   if (!game.deadExchangedThisTurn && !(difficulty === 'easy' && Math.random() < 0.4)) {
     const dead = player.hand.find((card) => isDeadCard(game, card));

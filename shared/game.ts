@@ -23,7 +23,7 @@ import { TEAMS } from './types';
 export const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'];
 export const SUITS = ['S', 'H', 'D', 'C'] as const;
 
-export const TWO_EYED_JACKS = ['JD', 'JC']; // wild — place anywhere
+export const TWO_EYED_JACKS = ['JD', 'JC']; // wild, place anywhere
 export const ONE_EYED_JACKS = ['JS', 'JH']; // remove an opponent chip
 
 export function isJack(card: Card): boolean {
@@ -60,7 +60,7 @@ export function teamOptionsFor(playerCount: number): Array<2 | 3> {
   return opts;
 }
 
-/** In-place Fisher–Yates shuffle using the given rng. */
+/** In-place Fisher-Yates shuffle using the given rng. */
 export function shuffle<T>(arr: T[], rng: () => number = Math.random): T[] {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -287,7 +287,7 @@ function teamSequenceCount(game: GameCore, team: Team): number {
 }
 
 /** After this many consecutive turns with no new sequence, the position is
- * declared dead and the game drawn. A real game averages 20–80 turns; this
+ * declared dead and the game drawn. A real game averages 20 to 80 turns; this
  * only triggers on genuinely locked boards (mostly 3-team endgames). */
 const DEAD_POSITION_TURNS = 400;
 
@@ -327,7 +327,7 @@ function forfeitStalePendingDraws(game: GameCore, moverId: string) {
 }
 
 function finishCardPlay(game: GameCore, player: ServerPlayer, card: Card) {
-  // remove from hand, discard — guard the index so a caller bug can't silently
+  // remove from hand, discard, guard the index so a caller bug can't silently
   // splice the wrong card (callers must have already verified the card is held)
   const idx = player.hand.indexOf(card);
   if (idx === -1) return;
@@ -469,7 +469,7 @@ export function applyMove(game: GameCore, playerId: string, move: Move): ApplyRe
       // a player may only pass with no legal move; exchanging a dead card is
       // optional (per official rules) so it never blocks a pass
       if (hasAnyLegalMove(game, player))
-        return { ok: false, error: 'You have a legal move — you cannot pass.' };
+        return { ok: false, error: 'You have a legal move, you cannot pass.' };
       forfeitStalePendingDraws(game, playerId);
       events.push(
         pushEvent(game, {
@@ -486,7 +486,7 @@ export function applyMove(game: GameCore, playerId: string, move: Move): ApplyRe
   return { ok: false, error: 'Unknown move.' };
 }
 
-/** A guaranteed-legal move for a player — used as a failsafe so an AI seat can
+/** A guaranteed-legal move for a player, used as a failsafe so an AI seat can
  * never leave a turn stuck (find any legal play; pass is legal iff none exist). */
 export function forceLegalMove(game: GameCore, player: ServerPlayer): Move {
   for (const card of player.hand) {

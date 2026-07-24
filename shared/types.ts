@@ -89,7 +89,7 @@ export interface GameCore {
   /** sequences required to win */
   required: number;
   winner: Team | null;
-  /** true when no player can ever move again (all hands empty) — a draw */
+  /** true when no player can ever move again (all hands empty), a draw */
   stalemate: boolean;
   /** turns since a sequence was last completed (dead-position detection) */
   turnsWithoutSequence: number;

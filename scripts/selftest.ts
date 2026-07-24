@@ -400,7 +400,7 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
     });
   const before = snap(g);
   const restored = JSON.parse(JSON.stringify(g)) as GameCore;
-  restored.rng = Math.random; // functions don't survive JSON — the store re-attaches it
+  restored.rng = Math.random; // functions don't survive JSON, the store re-attaches it
   assert(snap(restored) === before, 'save/resume: state survives the JSON round-trip');
 
   let illegal = 0;

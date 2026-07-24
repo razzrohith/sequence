@@ -23,7 +23,7 @@ export const SUIT_PATH: Record<string, string> = {
   C: 'M12 2.3a3.72 3.72 0 0 1 3.5 5.02 3.72 3.72 0 1 1 2.36 6.63c-.9 0-1.72-.32-2.36-.85.28 2.63 1.3 4.5 2.9 6.1H5.6c1.6-1.6 2.62-3.47 2.9-6.1-.64.53-1.46.85-2.36.85A3.72 3.72 0 1 1 8.5 7.32 3.72 3.72 0 0 1 12 2.3z',
 };
 
-/** Crisp, classic SVG suit symbols (unified shapes — clean at any size). */
+/** Crisp, classic SVG suit symbols (unified shapes, clean at any size). */
 export function SuitIcon({
   suit,
   className,
@@ -40,7 +40,7 @@ export function SuitIcon({
   );
 }
 
-/** A jester's cap with three belled points — the "joker" motif for wild/remove jacks. */
+/** A jester's cap with three belled points, the "joker" motif for wild/remove jacks. */
 export function JesterCap({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 24" className={`jester ${className ?? ''}`} aria-hidden>
@@ -85,9 +85,9 @@ export function CornerEmblem() {
 
 /**
  * Card faces come in two looks:
- *  - variant "hand" — "Color Pop": a bold sans rank in the suit colour with a
+ *  - variant "hand", "Color Pop": a bold sans rank in the suit colour with a
  *    corner wedge; jacks flag their WILD / REMOVE power.
- *  - variant "cell" — the board: an aged-paper vintage deck. Queens and Kings
+ *  - variant "cell", the board: an aged-paper vintage deck. Queens and Kings
  *    show real single-figure 1800s court illustrations; number cards use a bold
  *    serif rank over the suit. Every card carries big, legible corner indices.
  */

@@ -73,7 +73,7 @@ export default function Board() {
     return m;
   }, [game?.sequences]);
 
-  // cells of the sequence just completed this move — for a one-shot shimmer sweep
+  // cells of the sequence just completed this move, for a one-shot shimmer sweep
   const justSeq = useMemo(() => {
     const s = new Set<string>();
     const lm = game?.lastMove;
