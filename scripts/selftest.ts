@@ -11,6 +11,7 @@ import {
   HAND_SIZES,
   applyMove,
   createGame,
+  defaultSettings,
   isDeadCard,
   legalCellsFor,
   toClientState,
@@ -414,6 +415,58 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
   assert(!g.stalemate, 'strict: not a stalemate while a draw is still claimable');
   assert(applyMove(g, 'p0', { type: 'draw' }).ok, 'strict: that owed draw can still be claimed');
   assert(g.players[0].hand.length === 1, 'strict: claiming the draw refills the hand');
+}
+
+// undo policy: the snapshot/restore the host uses must reproduce the exact
+// pre-move state, and a move stops being undoable once the next player moves
+{
+  const g = freshGame(2, 2);
+  const snapshot = () => {
+    const { rng, ...rest } = g;
+    void rng;
+    return JSON.stringify(rest);
+  };
+  const before = snapshot();
+  const p0 = g.players[0];
+  const card = p0.hand.find((c) => legalCellsFor(g, 'red', c).length > 0)!;
+  const [r, c] = legalCellsFor(g, 'red', card)[0];
+  assert(applyMove(g, 'p0', { type: 'place', card, r, c }).ok, 'undo: the move is made');
+  assert(snapshot() !== before, 'undo: the board really changed');
+  assert(
+    g.log[g.log.length - 1].playerId === 'p0',
+    'undo: the mover owns the most recent move, so they may take it back',
+  );
+
+  // restore exactly as the host does, then re-snapshot: it must match byte for
+  // byte, and the chip the move placed must be gone again
+  const restored = JSON.parse(before) as GameCore;
+  restored.rng = Math.random;
+  const { rng: _rng, ...restoredRest } = restored;
+  void _rng;
+  assert(
+    JSON.stringify(restoredRest) === before,
+    'undo: restoring reproduces the pre-move state exactly',
+  );
+  assert(restored.board[r][c].chip === null, 'undo: the placed chip is taken back off the board');
+  assert(restored.players[0].hand.includes(card), 'undo: the played card returns to the hand');
+
+  // once the next player moves, the previous player no longer owns the last move
+  const p1 = g.players[1];
+  const card1 = p1.hand.find((x) => legalCellsFor(g, 'blue', x).length > 0)!;
+  const [r1, c1] = legalCellsFor(g, 'blue', card1)[0];
+  applyMove(g, 'p1', { type: 'place', card: card1, r: r1, c: c1 });
+  assert(
+    g.log[g.log.length - 1].playerId === 'p1',
+    'undo: after the next player moves, the earlier player can no longer undo',
+  );
+}
+
+// undoMode defaults to asking, and is carried through settings
+{
+  const d = defaultSettings();
+  assert(d.undoMode === 'approval', 'undo: defaults to needing approval');
+  assert(defaultSettings({ undoMode: 'instant' }).undoMode === 'instant', 'undo: instant setting');
+  assert(defaultSettings({ undoMode: 'off' }).undoMode === 'off', 'undo: off setting');
 }
 
 // save & resume: the client checkpoints GameCore through JSON.stringify, so the

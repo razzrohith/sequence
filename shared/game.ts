@@ -156,6 +156,7 @@ export function defaultSettings(partial: Partial<GameSettings> = {}): GameSettin
     turnSeconds: partial.turnSeconds ?? 0,
     winSequences: partial.winSequences,
     randomBoard: partial.randomBoard,
+    undoMode: partial.undoMode ?? 'approval',
   };
 }
 

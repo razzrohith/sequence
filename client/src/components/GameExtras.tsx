@@ -117,8 +117,11 @@ export function UndoControls() {
   const req = game.undoRequest;
   const myTurn =
     !game.winner && !game.stalemate && game.players[game.turn]?.id === game.yourId;
-  // you may request an undo if you made the most recent move and the game is live
+  const undoMode = game.settings.undoMode ?? 'approval';
+  // you may take back only the most recent move, and only while it is still
+  // yours: once the next player moves it is theirs and the chance has gone
   const canRequest =
+    undoMode !== 'off' &&
     !game.winner &&
     !game.stalemate &&
     game.lastMove &&
@@ -126,6 +129,9 @@ export function UndoControls() {
     (game.lastMove.kind === 'place' ||
       game.lastMove.kind === 'remove' ||
       game.lastMove.kind === 'exchangeDead');
+  const needsNod =
+    undoMode === 'approval' &&
+    game.players.some((p) => !p.isBot && p.connected && p.id !== game.yourId);
 
   return (
     <>
@@ -135,8 +141,16 @@ export function UndoControls() {
         </button>
       )}
       {canRequest && !req && (
-        <button className="undo-btn" onClick={requestUndo} title="Ask to take back your last move">
-          ↩ Undo
+        <button
+          className="undo-btn"
+          onClick={requestUndo}
+          title={
+            needsNod
+              ? 'Ask the others to let you take back your last move'
+              : 'Take back your last move'
+          }
+        >
+          ↩ {needsNod ? 'Ask to undo' : 'Undo'}
         </button>
       )}
       <AnimatePresence>

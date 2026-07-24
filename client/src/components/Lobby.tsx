@@ -188,6 +188,28 @@ export default function Lobby() {
             </div>
 
             <div className="seg seg-wrap">
+              <span className="seg-label">Take back a move</span>
+              {(
+                [
+                  ['off', 'Off'],
+                  ['instant', 'Undo'],
+                  ['approval', 'Ask first'],
+                ] as const
+              ).map(([v, lbl]) => (
+                <button
+                  key={v}
+                  className={`seg-btn ${(room.settings.undoMode ?? 'approval') === v ? 'on' : ''}`}
+                  onClick={() => updateSettings({ undoMode: v })}
+                >
+                  {lbl}
+                </button>
+              ))}
+              <i className="seg-note">
+                Only the move you just made, and only until the next player moves.
+              </i>
+            </div>
+
+            <div className="seg seg-wrap">
               <span className="seg-label">Board for everyone</span>
               {BOARD_THEMES.map((t) => (
                 <button

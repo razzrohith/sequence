@@ -313,6 +313,7 @@ interface Store {
     winSequences?: number;
     boardTheme?: string;
     randomBoard?: boolean;
+    undoMode?: 'off' | 'instant' | 'approval';
   }) => void;
   startGame: () => void;
   playMove: (move: Move) => void;
@@ -680,6 +681,10 @@ export const useStore = create<Store>((set, get) => ({
     const s = get();
     // on-device games take the move back immediately, there's nobody to ask
     if (s.mode === 'local') {
+      if ((s.localCore?.settings.undoMode ?? 'approval') === 'off') {
+        get().toast('Undo is turned off for this game.', 'info');
+        return;
+      }
       if (!s.localUndo) {
         get().toast('Nothing to take back.', 'info');
         return;

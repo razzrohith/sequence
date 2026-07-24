@@ -460,6 +460,7 @@ export class NetHost {
     winSequences?: number;
     boardTheme?: string;
     randomBoard?: boolean;
+    undoMode?: string;
   }) {
     // the board theme is purely cosmetic, so the host may change it mid-game
     const themed = typeof s.boardTheme === 'string' && /^[a-z]{2,12}$/.test(s.boardTheme);
@@ -475,6 +476,8 @@ export class NetHost {
     if (typeof s.turnSeconds === 'number') this.settings.turnSeconds = s.turnSeconds;
     if (s.winSequences === 1 || s.winSequences === 2) this.settings.winSequences = s.winSequences;
     if (typeof s.randomBoard === 'boolean') this.settings.randomBoard = s.randomBoard;
+    if (s.undoMode === 'off' || s.undoMode === 'instant' || s.undoMode === 'approval')
+      this.settings.undoMode = s.undoMode;
     this.pushRoom();
   }
   start(): string | null {
@@ -559,11 +562,26 @@ export class NetHost {
   }
   private requestUndo(pid: string) {
     if (!this.game || !this.undoSnapshot) return;
+    const mode = this.settings.undoMode ?? 'approval';
+    if (mode === 'off') {
+      const msg = 'Undo is turned off for this game.';
+      if (pid === this.hostId) this.h.onError(msg);
+      else this.toPlayer(pid, { t: 'err', m: msg });
+      return;
+    }
+    // only the most recent move can be taken back: once the next player has
+    // moved, the log's last entry is theirs and the snapshot has been replaced
     const last = this.game.log[this.game.log.length - 1];
-    if (!last || last.playerId !== pid) return;
+    if (!last || last.playerId !== pid) {
+      const msg = 'Too late, the next player has already moved.';
+      if (pid === this.hostId) this.h.onError(msg);
+      else this.toPlayer(pid, { t: 'err', m: msg });
+      return;
+    }
     const humanOpp = this.players.filter((p) => !p.isBot && p.connected && p.id !== pid);
     const me = this.players.find((p) => p.id === pid);
-    if (humanOpp.length === 0) {
+    // straight undo, or nobody around to ask
+    if (mode === 'instant' || humanOpp.length === 0) {
       if (this.restore()) this.afterChange();
       return;
     }

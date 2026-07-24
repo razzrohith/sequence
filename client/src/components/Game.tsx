@@ -38,6 +38,7 @@ function MobileBar({
     game.players[game.turn]?.id === game.yourId;
   const last = game?.lastMove;
   const canUndo =
+    (game?.settings.undoMode ?? 'approval') !== 'off' &&
     !spectating &&
     !over &&
     !!last &&
