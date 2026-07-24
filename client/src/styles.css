@@ -1280,6 +1280,41 @@ body[data-board='ocean'] .board-frame {
   }
 }
 
+/* ---------- accessibility: reduce-motion & high-contrast ---------- */
+body.reduce-motion *,
+body.reduce-motion *::before,
+body.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+body.high-contrast .cardface.v-cell {
+  filter: contrast(1.08);
+}
+body.high-contrast .cell.legal {
+  box-shadow: 0 0 0 3px #16a34a, 0 0 0 5px #04240f !important;
+}
+body.high-contrast .cell.legal-remove {
+  box-shadow: 0 0 0 3px #ef4444, 0 0 0 5px #3b0708 !important;
+}
+body.high-contrast .chip {
+  box-shadow:
+    inset 0 -3px 5px rgba(0, 0, 0, 0.45),
+    inset 0 2px 3px rgba(255, 255, 255, 0.4),
+    0 0 0 2px rgba(0, 0, 0, 0.7),
+    0 2px 5px rgba(0, 0, 0, 0.6);
+}
+body.high-contrast .bf-oval,
+body.high-contrast .bf-word {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+body.high-contrast .cf-cx,
+body.high-contrast .cf-mid-rank {
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.5);
+}
+
 .chip {
   position: absolute;
   inset: 9%;

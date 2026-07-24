@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { useEffect } from 'react';
 import Game from './components/Game';
 import Home from './components/Home';
@@ -10,6 +10,7 @@ export default function App() {
   const connected = useStore((s) => s.connected);
   const serverProbed = useStore((s) => s.serverProbed);
   const toasts = useStore((s) => s.toasts);
+  const reducedMotion = useStore((s) => s.prefs.reducedMotion);
   const init = useStore((s) => s.init);
 
   useEffect(() => {
@@ -20,6 +21,7 @@ export default function App() {
   // AnimatePresence (mode="wait") can stall forever in a backgrounded tab
   // where requestAnimationFrame is throttled.
   return (
+    <MotionConfig reducedMotion={reducedMotion ? 'always' : 'user'}>
     <div className="app">
       <div className="rotate-overlay">
         <span className="ro-icon">📱</span>
@@ -86,5 +88,6 @@ export default function App() {
         </AnimatePresence>
       </div>
     </div>
+    </MotionConfig>
   );
 }

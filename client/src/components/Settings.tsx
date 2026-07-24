@@ -95,6 +95,18 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           label="Colorblind mode"
           hint="adds a distinct symbol to each team's chips"
         />
+        <Toggle
+          on={prefs.reducedMotion}
+          onChange={(v) => setPref('reducedMotion', v)}
+          label="Reduce motion"
+          hint="minimizes animations and effects"
+        />
+        <Toggle
+          on={prefs.highContrast}
+          onChange={(v) => setPref('highContrast', v)}
+          label="High contrast"
+          hint="bolder outlines and text for readability"
+        />
 
         <div className="setting-group">
           <span className="setting-label">AI difficulty (solo &amp; quick play)</span>

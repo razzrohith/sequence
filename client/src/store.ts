@@ -39,6 +39,8 @@ export interface Prefs {
   sound: boolean;
   haptics: boolean;
   colorblind: boolean;
+  reducedMotion: boolean;
+  highContrast: boolean;
   avatar: string;
   difficulty: BotDifficulty;
   boardTheme: string;
@@ -127,10 +129,21 @@ function loadPrefs(): Prefs {
     sound: saved.sound ?? true,
     haptics: saved.haptics ?? true,
     colorblind: saved.colorblind ?? false,
+    reducedMotion: saved.reducedMotion ?? prefersReducedMotion(),
+    highContrast: saved.highContrast ?? false,
     avatar: saved.avatar ?? AVATARS[0],
     difficulty: saved.difficulty ?? 'medium',
     boardTheme: saved.boardTheme ?? 'classic',
   };
+}
+
+/** Initial reduced-motion default follows the OS/browser accessibility setting. */
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
 }
 
 function loadStats(): Stats {
@@ -148,6 +161,8 @@ function applyPrefs(p: Prefs) {
   setHaptics(p.haptics);
   try {
     document.body.classList.toggle('colorblind', p.colorblind);
+    document.body.classList.toggle('reduce-motion', p.reducedMotion);
+    document.body.classList.toggle('high-contrast', p.highContrast);
     document.body.dataset.board = p.boardTheme || 'classic';
   } catch {
     /* SSR/no-dom */
