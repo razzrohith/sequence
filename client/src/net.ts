@@ -62,6 +62,10 @@ const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884
 const BROKER_PREFIX = ['E', 'H']; // one letter per broker, part of the room code
 const TOPIC = 'seqrz2';
 const QOS = 1 as const;
+/** How long the heir waits after a host's Last-Will before taking over. The will
+ * also fires on a transient drop, and the host auto-reconnects (reconnectPeriod
+ * 2000ms) and re-announces — this grace stops a blip creating two hosts. */
+const HOST_GONE_GRACE_MS = 5000;
 
 function mqttOptions(pid: string, will: { topic: string; payload: string }) {
   return {
@@ -691,6 +695,8 @@ export class NetGuest {
   private lastRoom: RoomInfo | null = null;
   private lastFull: HostSnapshot | null = null;
   private migrating = false;
+  /** bumped on every host broadcast — proof the host is still alive */
+  private hostMsgSeq = 0;
   /** every pending timer, so destroy() can't leave one to fire into a later room */
   private timers: Array<ReturnType<typeof setTimeout>> = [];
 
@@ -772,6 +778,8 @@ export class NetGuest {
 
   private onData(msg: Record<string, unknown>) {
     const t = msg.t;
+    // any traffic other than the will itself proves the host is still alive
+    if (t !== 'hostgone') this.hostMsgSeq++;
     if (t === 'joined') {
       this.settled = true;
       this.h.onJoined(String(msg.code ?? ''), msg.spectator === true);
@@ -796,22 +804,34 @@ export class NetGuest {
     const room = this.lastRoom;
     const heir = room?.players.find((p) => !p.isBot && p.connected && p.id !== room.hostId);
     if (heir && heir.id === this.playerId && this.lastFull) {
-      // I'm the heir — promote to host
-      try {
-        this.client.end(true);
-      } catch {
-        /* ignore */
-      }
-      this.h.onBecomeHost(this.code, this.lastFull);
+      // I'm the heir. The broker also publishes this will on a TRANSIENT host
+      // drop (wifi blip, laptop sleep, clientId session takeover) — the host
+      // auto-reconnects and re-announces. Promoting immediately would leave two
+      // authoritative engines on one room code, so wait and see if it speaks again.
+      const seqAtGone = this.hostMsgSeq;
+      this.later(() => {
+        if (this.hostMsgSeq !== seqAtGone) {
+          this.migrating = false; // the host came back — it never really left
+          return;
+        }
+        try {
+          this.client.end(true);
+        } catch {
+          /* ignore */
+        }
+        this.h.onBecomeHost(this.code, this.lastFull!);
+      }, HOST_GONE_GRACE_MS);
       return;
     }
     // not the heir (or no snapshot): the heir should promote and re-broadcast.
     // If nothing arrives soon, the room is gone.
     const roomAtGone = this.lastRoom;
+    // must outlast the heir's grace period plus its takeover, or we'd declare the
+    // room dead while a new host is still coming up
     this.later(() => {
       if (this.lastRoom === roomAtGone) this.h.onClosed('The room closed.');
       else this.migrating = false; // a new host took over; carry on
-    }, 9000);
+    }, HOST_GONE_GRACE_MS + 9000);
   }
 
   send(msg: Record<string, unknown>) {
