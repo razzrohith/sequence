@@ -461,6 +461,7 @@ export class NetHost {
     boardTheme?: string;
     randomBoard?: boolean;
     undoMode?: string;
+    hints?: boolean;
   }) {
     // the board theme is purely cosmetic, so the host may change it mid-game
     const themed = typeof s.boardTheme === 'string' && /^[a-z]{2,12}$/.test(s.boardTheme);
@@ -478,6 +479,7 @@ export class NetHost {
     if (typeof s.randomBoard === 'boolean') this.settings.randomBoard = s.randomBoard;
     if (s.undoMode === 'off' || s.undoMode === 'instant' || s.undoMode === 'approval')
       this.settings.undoMode = s.undoMode;
+    if (typeof s.hints === 'boolean') this.settings.hints = s.hints;
     this.pushRoom();
   }
   start(): string | null {

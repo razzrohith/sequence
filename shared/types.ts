@@ -47,6 +47,8 @@ export interface GameSettings {
   turnSeconds: number;
   /** sequences needed to win; omit for the official default (2 teams -> 2, 3 teams -> 1) */
   winSequences?: number;
+  /** whether the Hint button is available to players in this room */
+  hints?: boolean;
   /** how taking back a move works: not at all, straight away, or only when an
    * opponent agrees. A move can only ever be taken back while it is still the
    * most recent one, so nobody can undo after the next player has moved. */

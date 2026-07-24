@@ -314,6 +314,7 @@ interface Store {
     boardTheme?: string;
     randomBoard?: boolean;
     undoMode?: 'off' | 'instant' | 'approval';
+    hints?: boolean;
   }) => void;
   startGame: () => void;
   playMove: (move: Move) => void;
@@ -766,6 +767,10 @@ export const useStore = create<Store>((set, get) => ({
   requestHint() {
     const g = get().game;
     if (!g) return;
+    if (g.settings.hints === false) {
+      get().toast('Hints are turned off for this game.', 'info');
+      return;
+    }
     const me = g.players.find((p) => p.id === g.yourId);
     const myTurn = !g.winner && !g.stalemate && g.players[g.turn]?.id === g.yourId;
     if (!me || !myTurn) {

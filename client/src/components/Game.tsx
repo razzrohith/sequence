@@ -31,10 +31,12 @@ function MobileBar({
   const requestHint = useStore((s) => s.requestHint);
   const [emoteOpen, setEmoteOpen] = useState(false);
 
-  const myTurn =
+  // hints can be switched off for the room in the lobby
+  const canHint =
     !spectating &&
     !over &&
     !!game &&
+    game.settings.hints !== false &&
     game.players[game.turn]?.id === game.yourId;
   const last = game?.lastMove;
   const canUndo =
@@ -92,7 +94,7 @@ function MobileBar({
           </button>
         </div>
       )}
-      {myTurn && (
+      {canHint && (
         <button className="mb-btn" onClick={requestHint}>
           <span className="mb-ico">✦</span>
           <span className="mb-lbl">Hint</span>

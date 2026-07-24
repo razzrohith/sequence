@@ -469,6 +469,20 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
   assert(defaultSettings({ undoMode: 'off' }).undoMode === 'off', 'undo: off setting');
 }
 
+// hints are allowed unless the room turns them off
+{
+  assert(defaultSettings().hints === true, 'hints: allowed by default');
+  assert(defaultSettings({ hints: false }).hints === false, 'hints: can be switched off');
+  const g = createGame(
+    [0, 1].map((i) => ({ id: `p${i}`, name: `P${i}`, isBot: true, team: TEAMS[i % 2] })),
+    defaultSettings({ hints: false }),
+  );
+  assert(
+    toClientState(g, 'p0').settings.hints === false,
+    'hints: the off switch reaches every player through the game state',
+  );
+}
+
 // save & resume: the client checkpoints GameCore through JSON.stringify, so the
 // round-trip must preserve state exactly and the resumed game must keep playing
 {

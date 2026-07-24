@@ -115,8 +115,12 @@ export function UndoControls() {
   if (!game || spectating) return null;
 
   const req = game.undoRequest;
-  const myTurn =
-    !game.winner && !game.stalemate && game.players[game.turn]?.id === game.yourId;
+  // hints can be switched off for the room in the lobby
+  const canHint =
+    game.settings.hints !== false &&
+    !game.winner &&
+    !game.stalemate &&
+    game.players[game.turn]?.id === game.yourId;
   const undoMode = game.settings.undoMode ?? 'approval';
   // you may take back only the most recent move, and only while it is still
   // yours: once the next player moves it is theirs and the chance has gone
@@ -135,7 +139,7 @@ export function UndoControls() {
 
   return (
     <>
-      {myTurn && !req && (
+      {canHint && !req && (
         <button className="hint-btn" onClick={requestHint} title="Suggest a strong move">
           ✦ Hint
         </button>
