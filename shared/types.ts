@@ -153,6 +153,8 @@ export interface ClientGameState {
   turnDeadline: number | null;
   /** milliseconds left on each player's game clock, when a clock is in use */
   timeBank?: Record<string, number>;
+  /** sequences each team needs, including any handicap */
+  requiredByTeam?: Record<Team, number>;
   /** true if you are watching, not seated */
   spectator?: boolean;
   /** number of watchers */

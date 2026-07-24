@@ -354,7 +354,7 @@ interface Store {
   createRoom: () => void;
   quickPlay: (players: number) => void;
   joinRoom: (code: string, password?: string) => void;
-  spectate: (code: string) => void;
+  spectate: (code: string, password?: string) => void;
   leaveRoom: () => void;
   addBot: () => void;
   removePlayer: (id: string) => void;
@@ -683,7 +683,7 @@ export const useStore = create<Store>((set, get) => ({
     get().toast('Connecting to room…');
   },
 
-  spectate(code) {
+  spectate(code, password) {
     const { name, playerId, prefs } = get();
     get()._goHome();
     const guest = new NetGuest(
@@ -693,6 +693,7 @@ export const useStore = create<Store>((set, get) => ({
       prefs.avatar,
       true,
       get().netHandlers(),
+      password ?? '',
     );
     set({ net: guest, netKind: 'guest', mode: 'online', chat: [], lastEventSeen: 0, wasMyTurn: false });
     get().toast('Connecting to watch…');

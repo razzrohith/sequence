@@ -18,6 +18,7 @@ import {
   isDeadCard,
   teamOptionsFor,
   toClientState,
+  turnDeadlineFor,
 } from '../../shared/game';
 import type {
   ChatMessage,
@@ -36,7 +37,14 @@ import { TEAMS } from '../../shared/types';
 export interface HostSnapshot {
   hostId: string; // the (old) host's player id
   settings: GameSettings;
-  players: { id: string; name: string; avatar?: string; isBot: boolean; connected: boolean }[];
+  players: {
+    id: string;
+    name: string;
+    avatar?: string;
+    isBot: boolean;
+    connected: boolean;
+    ready?: boolean;
+  }[];
   started: boolean;
   core: GameCore | null; // rng stripped
 }
@@ -411,6 +419,7 @@ export class NetHost {
         avatar: p.avatar,
         isBot: p.isBot,
         connected: p.connected,
+        ready: p.ready,
       })),
       started: this.started,
       core: this.game ? (core as GameCore) : null,
@@ -424,8 +433,12 @@ export class NetHost {
   }
 
   private pushRoom() {
-    this.h.onRoomUpdate(this.roomInfo());
-    this.pub('b', { t: 'room', info: this.roomInfo() });
+    // the host keeps the full settings (its own lobby shows the password), but the
+    // published copy is redacted: the broadcast topic is readable by anyone
+    const info = this.roomInfo();
+    this.h.onRoomUpdate(info);
+    const shared = { ...info, settings: { ...info.settings, password: undefined } };
+    this.pub('b', { t: 'room', info: shared });
     this.sendSnapshotToHeir();
   }
 
@@ -512,7 +525,7 @@ export class NetHost {
     if (s.handicapTeam === '') this.settings.handicapTeam = undefined;
     if (typeof s.handicapExtra === 'number' && s.handicapExtra >= 0 && s.handicapExtra <= 3)
       this.settings.handicapExtra = Math.floor(s.handicapExtra);
-    if (typeof s.password === 'string') this.settings.password = s.password.slice(0, 24);
+    if (typeof s.password === 'string') this.settings.password = s.password.slice(0, 24).trim();
     if (typeof s.teamChat === 'boolean') this.settings.teamChat = s.teamChat;
     this.pushRoom();
   }
@@ -547,6 +560,16 @@ export class NetHost {
   rematch(): string | null {
     if (!this.game || (!this.game.winner && !this.game.stalemate))
       return 'The game is not over yet.';
+    // start() can refuse (someone not ready, wrong player count). Check that up
+    // front: tearing the game down first would leave the room with no game and
+    // no route back, since a failed start() emits no room or state update.
+    const notReady = this.players.filter(
+      (p) => !p.isBot && p.connected && p.id !== this.hostId && !p.ready,
+    );
+    if (notReady.length > 0)
+      return `Waiting for ${notReady.map((p) => p.name).join(', ')} to be ready.`;
+    if (teamOptionsFor(this.players.length).length === 0)
+      return `Need ${Object.keys(HAND_SIZES).join(' / ')} players (add bots or friends).`;
     this.players.push(this.players.shift()!);
     this.started = false;
     this.game = null;
@@ -585,8 +608,11 @@ export class NetHost {
   }
   private snapshot(): unknown {
     if (!this.game) return null;
-    const { rng, ...rest } = this.game;
+    // turnStartedAt is wall-clock, not game state: restoring it would bill the
+    // undo request and the opponent's deliberation to the player who undid
+    const { rng, turnStartedAt, ...rest } = this.game;
     void rng;
+    void turnStartedAt;
     return rest;
   }
   private restore(): boolean {
@@ -594,6 +620,7 @@ export class NetHost {
     try {
       const parsed = JSON.parse(this.undoSnapshot) as GameCore;
       parsed.rng = this.game.rng ?? Math.random;
+      parsed.turnStartedAt = Date.now(); // the restored turn starts now
       this.game = parsed;
       this.undoSnapshot = null;
       this.undoRequest = null;
@@ -641,7 +668,9 @@ export class NetHost {
   }
   private chat(pid: string, text: string) {
     if (!text) return;
-    const p = this.players.find((x) => x.id === pid);
+    const p =
+      this.players.find((x) => x.id === pid) ??
+      this.spectators.find((x) => x.id === pid);
     if (!p) return;
     const gp = this.game?.players.find((x) => x.id === pid);
     const msg: ChatMessage = { playerId: pid, name: p.name, team: gp?.team ?? null, text, ts: 0 };
@@ -732,12 +761,12 @@ export class NetHost {
     }
     const g = this.game;
     if (!g || g.winner || g.stalemate) return;
-    const secs = g.settings.turnSeconds ?? 0;
-    if (secs <= 0) return;
+    // whichever runs out first: the per-turn timer or this player's game clock
+    const deadline = turnDeadlineFor(g);
+    if (deadline === null) return;
     const cur = g.players[g.turn];
     const rp = this.players.find((p) => p.id === cur.id);
     if (!rp || cur.isBot || !rp.connected) return;
-    const deadline = (g.turnStartedAt ?? Date.now()) + secs * 1000;
     this.turnTimer = setTimeout(
       () => {
         this.turnTimer = null;

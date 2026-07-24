@@ -21,7 +21,7 @@ export default function PlayersPanel() {
             <span className={`team-dot ${t}`} />
             <span className="ts-name">{TEAM_LABEL[t]}</span>
             <span className="ts-pips">
-              {Array.from({ length: game.required }).map((_, i) => (
+              {Array.from({ length: game.requiredByTeam?.[t] ?? game.required }).map((_, i) => (
                 <span key={i} className={`pip ${i < seqCount(t) ? 'filled' : ''}`} />
               ))}
             </span>

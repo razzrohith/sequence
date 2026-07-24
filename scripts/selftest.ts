@@ -16,6 +16,7 @@ import {
   legalCellsFor,
   requiredFor,
   toClientState,
+  turnDeadlineFor,
   validateBoardLayout,
 } from '../shared/game';
 import { TEAMS } from '../shared/types';
@@ -535,6 +536,44 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
   assert(left < 300000 && left > 293000, `clock: p0 was billed about 4s (left ${left}ms)`);
   assert(g.timeBank!.p1 === 300000, 'clock: the waiting player is not billed');
   assert(toClientState(g, 'p0').timeBank?.p0 === left, 'clock: the bank reaches the client');
+}
+
+// the clock must actually drive the turn deadline, not just be displayed
+{
+  const g = createGame(
+    [0, 1].map((i) => ({ id: `p${i}`, name: `P${i}`, isBot: true, team: TEAMS[i % 2] })),
+    defaultSettings({ clockSeconds: 60, turnSeconds: 0 }),
+  );
+  const d = turnDeadlineFor(g);
+  assert(d !== null, 'clock: a game clock alone still produces a turn deadline');
+  assert(
+    Math.abs((d ?? 0) - ((g.turnStartedAt ?? 0) + 60000)) < 50,
+    'clock: the deadline is the bank when there is no per-turn timer',
+  );
+  // whichever runs out first wins
+  const g2 = createGame(
+    [0, 1].map((i) => ({ id: `p${i}`, name: `P${i}`, isBot: true, team: TEAMS[i % 2] })),
+    defaultSettings({ clockSeconds: 60, turnSeconds: 10 }),
+  );
+  assert(
+    Math.abs((turnDeadlineFor(g2) ?? 0) - ((g2.turnStartedAt ?? 0) + 10000)) < 50,
+    'clock: the shorter of the per-turn timer and the bank wins',
+  );
+  const g3 = freshGame(2, 2);
+  assert(turnDeadlineFor(g3) === null, 'clock: no timer and no bank means no deadline');
+  g3.winner = 'red';
+  assert(turnDeadlineFor(g3) === null, 'clock: a finished game has no deadline');
+}
+
+// the handicap has to reach the client, or the UI shows the wrong target
+{
+  const g = createGame(
+    [0, 1].map((i) => ({ id: `p${i}`, name: `P${i}`, isBot: true, team: TEAMS[i % 2] })),
+    defaultSettings({ winSequences: 2, handicapTeam: 'red', handicapExtra: 1 }),
+  );
+  const cs = toClientState(g, 'p0');
+  assert(cs.requiredByTeam?.red === 3, 'handicap: the client sees the raised target for that team');
+  assert(cs.requiredByTeam?.blue === 2, 'handicap: the other team keeps the normal target');
 }
 
 // hints are allowed unless the room turns them off

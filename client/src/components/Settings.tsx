@@ -29,6 +29,7 @@ function Toggle({
 export default function Settings({ onClose }: { onClose: () => void }) {
   const prefs = useStore((s) => s.prefs);
   const setPref = useStore((s) => s.setPref);
+  const toast = useStore((s) => s.toast);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -160,13 +161,24 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         <Toggle
           on={prefs.notifyTurn}
           onChange={async (v) => {
-            // only store it once the browser has actually granted permission
-            if (v && typeof Notification !== 'undefined') {
+            // only store it once the browser has actually granted permission,
+            // and say so when it refuses instead of silently snapping back
+            if (v) {
+              if (typeof Notification === 'undefined') {
+                toast('This browser cannot show notifications.', 'error');
+                return;
+              }
               const perm =
                 Notification.permission === 'granted'
                   ? 'granted'
                   : await Notification.requestPermission();
-              if (perm !== 'granted') return;
+              if (perm !== 'granted') {
+                toast(
+                  'Notifications are blocked for this site. Allow them in your browser settings.',
+                  'error',
+                );
+                return;
+              }
             }
             setPref('notifyTurn', v);
           }}

@@ -17,8 +17,13 @@ export function TurnTimer() {
   }, [deadline]);
 
   if (!game || !deadline) return null;
-  const total = (game.settings.turnSeconds ?? 0) * 1000;
   const left = Math.max(0, deadline - now);
+  // with a game clock the countdown can be the player's remaining bank rather
+  // than the per-turn timer, so scale the ring against whichever is in play
+  const perTurn = (game.settings.turnSeconds ?? 0) * 1000;
+  const cur = game.players[game.turn];
+  const bank = game.timeBank && cur ? (game.timeBank[cur.id] ?? 0) : 0;
+  const total = perTurn > 0 && (bank === 0 || perTurn <= bank) ? perTurn : bank;
   const secs = Math.ceil(left / 1000);
   const frac = total > 0 ? left / total : 0;
   const urgent = secs <= 5;

@@ -123,7 +123,7 @@ function MobileStrip() {
           <span key={t} className="ms-score">
             <span className={`team-dot ${t}`} />
             <span className="ms-pips">
-              {Array.from({ length: game.required }).map((_, i) => (
+              {Array.from({ length: game.requiredByTeam?.[t] ?? game.required }).map((_, i) => (
                 <span key={i} className={`pip ${i < seqCount(t) ? 'filled' : ''}`} />
               ))}
             </span>

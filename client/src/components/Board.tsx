@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { type CSSProperties, useMemo, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useState } from 'react';
 import { isCorner } from '../../../shared/board';
 import { isOneEyed, legalCellsOnBoard } from '../../../shared/game';
 import type { Team } from '../../../shared/types';
@@ -51,6 +51,11 @@ export default function Board() {
   const confirmPlace = useStore((s) => s.prefs.confirmPlace);
   // with 'confirm before placing' on, the first tap arms a cell, the second commits
   const [armed, setArmed] = useState<string | null>(null);
+  // an armed cell belongs to one card on one turn; forget it the moment either
+  // changes, otherwise the next tap would commit a different card unconfirmed
+  useEffect(() => {
+    setArmed(null);
+  }, [selectedCard, game?.turn, game?.winner]);
   const playMove = useStore((s) => s.playMove);
   const selectCard = useStore((s) => s.selectCard);
 

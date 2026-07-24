@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { isDeadOnBoard, isJack, legalCellsOnBoard } from '../../../shared/game';
 import type { Card } from '../../../shared/types';
 import { sfx } from '../sounds';
@@ -38,6 +38,13 @@ export default function Hand() {
     if (holdTimer.current) clearTimeout(holdTimer.current);
     holdTimer.current = setTimeout(() => previewCardSet(card), 350);
   };
+  useEffect(
+    () => () => {
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+      previewCardSet(null);
+    },
+    [previewCardSet],
+  );
   const endHold = () => {
     if (holdTimer.current) clearTimeout(holdTimer.current);
     holdTimer.current = null;

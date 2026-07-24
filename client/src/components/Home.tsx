@@ -138,14 +138,14 @@ export default function Home() {
                 e.key === 'Enter' &&
                 online &&
                 code.length === 5 &&
-                (watchMode ? spectate(code) : joinRoom(code, joinPw))
+                (watchMode ? spectate(code, joinPw) : joinRoom(code, joinPw))
               }
             />
             <motion.button
               className="btn btn-secondary"
               disabled={!online || code.length !== 5}
               whileTap={{ scale: 0.96 }}
-              onClick={() => (watchMode ? spectate(code) : joinRoom(code, joinPw))}
+              onClick={() => (watchMode ? spectate(code, joinPw) : joinRoom(code, joinPw))}
             >
               {watchMode ? 'Watch' : 'Join'}
             </motion.button>

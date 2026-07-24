@@ -304,6 +304,21 @@ function detectNewSequences(game: GameCore, team: Team, r: number, c: number): S
   return found;
 }
 
+/** When the current turn must end: the per-turn timer, the player's remaining
+ * game clock, or neither. Used by the UI and by the host that enforces it, so
+ * the countdown shown and the moment it fires can never disagree. */
+export function turnDeadlineFor(game: GameCore): number | null {
+  if (game.winner || game.stalemate) return null;
+  const started = game.turnStartedAt ?? Date.now();
+  const secs = game.settings.turnSeconds ?? 0;
+  const current = game.players[game.turn];
+  const bank = game.timeBank && current ? (game.timeBank[current.id] ?? 0) : null;
+  const ends: number[] = [];
+  if (secs > 0) ends.push(started + secs * 1000);
+  if (bank !== null) ends.push(started + bank);
+  return ends.length > 0 ? Math.min(...ends) : null;
+}
+
 /** Sequences this team needs to win, including any handicap on them. */
 export function requiredFor(game: GameCore, team: Team): number {
   const extra = game.settings.handicapTeam === team ? (game.settings.handicapExtra ?? 0) : 0;
@@ -545,15 +560,7 @@ export function toClientState(game: GameCore, playerId: string): ClientGameState
   const you = game.players.find((p) => p.id === playerId);
   const secs = game.settings.turnSeconds ?? 0;
   const over = !!game.winner || game.stalemate;
-  // the turn ends at whichever comes first: the per-turn timer, or the player
-  // running out of their game clock
-  const started = game.turnStartedAt ?? Date.now();
-  const current = game.players[game.turn];
-  const bank = game.timeBank && current ? (game.timeBank[current.id] ?? 0) : null;
-  const ends: number[] = [];
-  if (secs > 0) ends.push(started + secs * 1000);
-  if (bank !== null) ends.push(started + bank);
-  const turnDeadline = !over && ends.length > 0 ? Math.min(...ends) : null;
+  const turnDeadline = turnDeadlineFor(game);
   return {
     board: game.board,
     layout: game.layout,
@@ -582,6 +589,10 @@ export function toClientState(game: GameCore, playerId: string): ClientGameState
     log: game.log.slice(-20),
     turnDeadline,
     timeBank: game.timeBank ? { ...game.timeBank } : undefined,
+    // per-team targets, so a handicapped team sees its real goal
+    requiredByTeam: Object.fromEntries(
+      [...new Set(game.players.map((p) => p.team))].map((t) => [t, requiredFor(game, t)]),
+    ) as Record<Team, number>,
   };
 }
 
