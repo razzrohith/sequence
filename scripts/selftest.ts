@@ -18,6 +18,22 @@ import {
 import { TEAMS } from '../shared/types';
 import type { Card, GameCore, Team } from '../shared/types';
 
+/** Small deterministic PRNG so the gate never flakes and every failure is
+ * reproducible from its seed. We drive the global Math.random (used by the deck
+ * shuffle in createGame and by the bot's scoring noise) from a seed. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const ORIG_RANDOM = Math.random;
+// fixed seed for the deterministic unit-test section; sims reseed per iteration
+Math.random = mulberry32(0xc0ffee);
+
 let passed = 0;
 let failed = 0;
 
@@ -328,6 +344,12 @@ function simulate(playerCount: number, teamCount: 2 | 3, strictDraw: boolean): s
     if (strictDraw && (game.pendingDraws[current.id] ?? 0) > 0) {
       if (Math.random() < 0.9) applyMove(game, current.id, { type: 'draw' });
     }
+    // per-move invariant: cards are conserved and no cell holds two chips
+    const live =
+      game.deck.length +
+      game.discard.length +
+      game.players.reduce((a, p) => a + p.hand.length, 0);
+    if (live !== 104) throw new Error(`card leak at move ${moves}: ${live} != 104`);
     moves++;
   }
   if (!game.winner && !game.stalemate)
@@ -345,7 +367,8 @@ function simulate(playerCount: number, teamCount: 2 | 3, strictDraw: boolean): s
   return `${playerCount}p/${teamCount}t${strictDraw ? '/strict' : ''}: ${outcome} in ${moves} moves`;
 }
 
-console.log('\nFull-game simulations (25 each):');
+const SIM_COUNT = 60;
+console.log(`\nFull-game simulations (${SIM_COUNT} each, seeded/reproducible):`);
 const configs: Array<[number, 2 | 3, boolean]> = [
   [2, 2, false],
   [2, 2, true],
@@ -362,21 +385,25 @@ const configs: Array<[number, 2 | 3, boolean]> = [
 ];
 
 let simFailures = 0;
-for (const [pc, tc, strict] of configs) {
-  for (let i = 0; i < 25; i++) {
+for (let ci = 0; ci < configs.length; ci++) {
+  const [pc, tc, strict] = configs[ci];
+  for (let i = 0; i < SIM_COUNT; i++) {
+    const seed = 0x100000 * (ci + 1) + i;
+    Math.random = mulberry32(seed);
     try {
       const summary = simulate(pc, tc, strict);
       if (i === 0) console.log('OK  ', summary);
     } catch (e) {
       simFailures++;
-      console.error('FAIL', pc, 'players:', (e as Error).message);
+      console.error(`FAIL ${pc}p/${tc}t${strict ? '/strict' : ''} seed=${seed}:`, (e as Error).message);
       break;
     }
   }
 }
+Math.random = ORIG_RANDOM;
 
 if (simFailures) {
   console.error(`\n${simFailures} configuration(s) failed`);
   process.exit(1);
 }
-console.log('\nAll rule tests and simulations passed.');
+console.log(`\nAll rule tests and ${configs.length * SIM_COUNT} seeded simulations passed.`);
