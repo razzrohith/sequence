@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { Card } from '../../../shared/types';
+import { COURT_ART } from '../assets/courts';
 
 const RANK_LABEL: Record<string, string> = { T: '10', A: 'A', J: 'J', Q: 'Q', K: 'K' };
 
@@ -41,10 +42,12 @@ export function SuitIcon({
 }
 
 /**
- * A clean, modern card face: a bold display-serif rank with a large suit over a
- * softly suit-tinted stock and a big watermark suit bleeding from the corner.
- * Reads instantly at board-cell size; richer with corner indices in the hand.
- * variant "cell" = mini card on the board, "hand" = full card in hand.
+ * Card faces come in two looks:
+ *  - variant "hand" — "Color Pop": a bold sans rank in the suit colour with a
+ *    corner wedge; jacks flag their WILD / REMOVE power.
+ *  - variant "cell" — the board: an aged-paper vintage deck. Queens and Kings
+ *    show real single-figure 1800s court illustrations; number cards use a bold
+ *    serif rank over the suit. Every card carries big, legible corner indices.
  */
 export default function CardFace({
   card,
@@ -57,31 +60,51 @@ export default function CardFace({
   const rank = card[0];
   const label = rankLabel(card);
   const red = isRedSuit(card);
+
+  // ----- Board: vintage aged-paper card -----
+  if (variant === 'cell') {
+    const isCourt = rank === 'Q' || rank === 'K';
+    const isAce = rank === 'A';
+    const cx = isCourt ? 'cf-cx badge' : 'cf-cx';
+    return (
+      <div className={`cardface v-cell suit-${suit} ${red ? 'red' : 'black'}`}>
+        {isCourt ? (
+          <div className="cf-court" style={{ backgroundImage: `url(${COURT_ART[card]})` }} />
+        ) : isAce ? (
+          <SuitIcon suit={suit} className="cf-ace" />
+        ) : (
+          <>
+            <SuitIcon suit={suit} className="cf-wm" />
+            <div className="cf-mid">
+              <span className="cf-mid-rank">{label}</span>
+              <SuitIcon suit={suit} className="cf-mid-suit" />
+            </div>
+          </>
+        )}
+        <div className="cf-frame" />
+        <span className={`${cx} tl`}>
+          <span className="cf-cx-rk">{label}</span>
+          <SuitIcon suit={suit} />
+        </span>
+        <span className={`${cx} br`}>
+          <span className="cf-cx-rk">{label}</span>
+          <SuitIcon suit={suit} />
+        </span>
+      </div>
+    );
+  }
+
+  // ----- Hand: Color Pop -----
   const isJack = rank === 'J';
   const oneEyed = card === 'JS' || card === 'JH';
-
   return (
-    <div className={`cardface v-${variant} suit-${suit} ${red ? 'red' : 'black'}`}>
-      <SuitIcon suit={suit} className="cf-bg-suit" />
-
-      <div className="cf-main">
-        <span className="cf-main-rank">{label}</span>
-        <SuitIcon suit={suit} className="cf-main-suit" />
+    <div className={`cardface v-hand suit-${suit} ${red ? 'red' : 'black'}`}>
+      <div className="cf-wedge" />
+      <span className="cf-pop-tl">{label}</span>
+      <div className="cf-pop-main">
+        <span className="cf-pop-rank">{label}</span>
+        <SuitIcon suit={suit} className="cf-pop-suit" />
       </div>
-
-      {variant === 'hand' && (
-        <>
-          <span className="cf-idx tl">
-            <b>{label}</b>
-            <SuitIcon suit={suit} />
-          </span>
-          <span className="cf-idx br">
-            <b>{label}</b>
-            <SuitIcon suit={suit} />
-          </span>
-        </>
-      )}
-
       {isJack && (
         <span className={`cf-jack-tag ${oneEyed ? 'cut' : 'wild'}`}>
           {oneEyed ? 'REMOVE' : 'WILD'}

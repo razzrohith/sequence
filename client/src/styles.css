@@ -1929,7 +1929,7 @@ body.colorblind .chip-star {
   justify-content: center;
 }
 
-/* ---------- clean modern card faces ---------- */
+/* ---------- card faces: Color Pop hand · vintage board ---------- */
 .cardface {
   width: 100%;
   height: 100%;
@@ -1938,102 +1938,70 @@ body.colorblind .chip-star {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(158deg, #fffefb 0%, #f6efe1 100%);
-}
-/* board cells inherit their (small) font-size from .cell; hand cards set their own */
-.cardface.v-cell {
-  border-radius: 13%;
-}
-.cardface.v-hand {
-  border-radius: 9px;
-  font-size: 13px;
-  border: 1px solid rgba(60, 45, 15, 0.16);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.8),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
-}
-.cardface.red {
-  color: #c8102e;
-}
-.cardface.black {
-  color: #16161d;
-}
-/* soft per-suit tint so red/black read at a glance */
-.cardface.suit-H,
-.cardface.suit-D {
-  background: linear-gradient(158deg, #fffbf9 0%, #fbe7e1 100%);
-}
-.cardface.suit-S,
-.cardface.suit-C {
-  background: linear-gradient(158deg, #fbfcff 0%, #e8edf4 100%);
 }
 .suit-icon {
   fill: currentColor;
   display: block;
 }
 
-/* large watermark suit bleeding from the lower-right corner */
-.cf-bg-suit {
-  position: absolute;
-  width: 128%;
-  height: 128%;
-  right: -32%;
-  bottom: -28%;
-  opacity: 0.08;
-  pointer-events: none;
+/* ===== HAND — "Color Pop": bold rank, suit-colour corner wedge ===== */
+.cardface.v-hand {
+  border-radius: 9px;
+  font-size: 13px;
+  background: #fff;
+  border: 1px solid #e9e9e9;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
 }
-
-/* the hero: a bold display-serif rank over a large suit */
-.cf-main {
+.cardface.v-hand.red {
+  --pop: #e11d48;
+  color: #e11d48;
+}
+.cardface.v-hand.black {
+  --pop: #111827;
+  color: #111827;
+}
+.cf-wedge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-top: 2.5em solid var(--pop);
+  border-right: 2.5em solid transparent;
+  z-index: 0;
+}
+.cf-pop-tl {
+  position: absolute;
+  top: 4%;
+  left: 7%;
+  z-index: 2;
+  color: #fff;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-weight: 900;
+  font-size: 0.82em;
+  letter-spacing: -0.03em;
+}
+.cf-pop-main {
   position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  line-height: 0.86;
+  line-height: 0.84;
+  color: var(--pop);
 }
-.cf-main-rank {
-  font-family: 'Playfair Display', serif;
-  font-weight: 800;
-  font-size: 2.35em;
-  letter-spacing: -0.035em;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+.cf-pop-rank {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-weight: 900;
+  font-size: 2.7em;
+  letter-spacing: -0.05em;
 }
-.cf-main-suit {
-  width: 1.12em;
-  height: 1.12em;
-  margin-top: 0.14em;
-  filter: drop-shadow(0 0.5px 0.5px rgba(0, 0, 0, 0.12));
-}
-
-/* small corner indices (hand cards only) for the classic feel */
-.cf-idx {
-  position: absolute;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 0.8;
-  font-weight: 800;
-  font-size: 0.92em;
-}
-.cf-idx b {
-  letter-spacing: -0.03em;
-}
-.cf-idx svg {
-  width: 0.72em;
-  height: 0.72em;
-  margin-top: 0.05em;
-}
-.cf-idx.tl {
-  top: 6%;
-  left: 7%;
-}
-.cf-idx.br {
-  bottom: 6%;
-  right: 7%;
-  transform: rotate(180deg);
+.cf-pop-suit {
+  width: 1.05em;
+  height: 1.05em;
+  margin-top: 0.08em;
 }
 
 /* jacks aren't on the board — flag their power clearly in hand */
@@ -2056,6 +2024,122 @@ body.colorblind .chip-star {
 .cf-jack-tag.cut {
   background: #b91c1c;
   color: #fee2e2;
+}
+
+/* ===== BOARD — vintage aged-paper deck with real court art ===== */
+.cardface.v-cell {
+  border-radius: 13%;
+  background: linear-gradient(158deg, #ece2cb 0%, #e2d6b8 100%);
+  /* bigger than the plain cell font so ranks/indices read clearly */
+  font-size: max(calc(var(--board-size) / 10 * 0.2), 9px);
+}
+.cardface.v-cell.red {
+  color: #b0142b;
+}
+.cardface.v-cell.black {
+  color: #1a1a22;
+}
+/* double vintage frame */
+.cf-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: 13%;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(60, 40, 10, 0.3);
+}
+.cf-frame::before {
+  content: '';
+  position: absolute;
+  inset: 6%;
+  border-radius: 8%;
+  border: 1px solid rgba(150, 120, 45, 0.5);
+}
+/* real single-figure court illustration */
+.cf-court {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-size: cover;
+  background-position: center;
+  border-radius: 13%;
+}
+/* big, legible corner indices */
+.cf-cx {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.72;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 800;
+}
+.cf-cx-rk {
+  font-size: 1.18em;
+  letter-spacing: -0.02em;
+}
+.cf-cx svg {
+  width: 0.8em;
+  height: 0.8em;
+  margin-top: 0.08em;
+}
+.cf-cx.tl {
+  top: 5.5%;
+  left: 8%;
+}
+.cf-cx.br {
+  bottom: 5.5%;
+  right: 8%;
+  transform: rotate(180deg);
+}
+/* on court cards the index sits on a small cream chip so it stays readable */
+.cf-cx.badge {
+  padding: 0.04em 0.24em 0.1em;
+  border-radius: 5px;
+  background: linear-gradient(160deg, rgba(245, 238, 218, 0.95), rgba(230, 218, 190, 0.95));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+}
+.cf-cx.badge.tl {
+  top: 4%;
+  left: 5%;
+}
+.cf-cx.badge.br {
+  bottom: 4%;
+  right: 5%;
+}
+/* number cards: bold serif rank over suit, with a faint suit watermark */
+.cf-mid {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.82;
+}
+.cf-mid-rank {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 800;
+  font-size: 2em;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.cf-mid-suit {
+  width: 0.9em;
+  height: 0.9em;
+  margin-top: 0.1em;
+}
+.cf-wm {
+  position: absolute;
+  z-index: 0;
+  width: 58%;
+  height: 58%;
+  opacity: 0.08;
+}
+.cf-ace {
+  width: 46%;
+  height: 46%;
+  z-index: 1;
 }
 
 /* ---------- win overlay ---------- */
