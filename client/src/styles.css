@@ -3324,13 +3324,12 @@ body.left-handed .mobile-bar > * {
 }
 
 /* ============================================================
-   Showpiece animated board themes. All motion lives in pseudo
-   elements behind the content (isolated stacking context, z-index -1,
-   pointer-events none), so nothing affects layout or clicks, and the
-   global reduce-motion switch already freezes them.
+   Showpiece animated board themes. All motion lives in pseudo elements behind
+   the content (isolated stacking context, z-index -1, pointer-events none), so
+   nothing affects layout or clicks, and the global reduce-motion switch freezes
+   them.
    ============================================================ */
 
-/* only the animated themes turn the play area into a contained backdrop host */
 body[data-board='galaxy'] .game-main,
 body[data-board='abyss'] .game-main,
 body[data-board='inferno'] .game-main,
@@ -3340,39 +3339,15 @@ body[data-board='aurora'] .game-main {
   overflow: hidden;
 }
 
-/* ---------- 🌌 Dark Universe ---------- */
+/* ---------- 🌌 Dark Universe : pitch-black space + a milky-way band ---------- */
 body[data-board='galaxy'] {
-  --frame-ink: rgba(230, 225, 255, 0.95);
+  --frame-ink: rgba(228, 232, 255, 0.95);
 }
 body[data-board='galaxy'] .game-main {
-  background:
-    radial-gradient(1000px 700px at 15% 10%, #241a4d 0%, transparent 55%),
-    radial-gradient(900px 600px at 85% 80%, #10284f 0%, transparent 55%),
-    linear-gradient(160deg, #070515, #0c0722 60%, #05030f);
+  background: #000105;
 }
-/* drifting twinkling starfield */
-body[data-board='galaxy'] .game-main::before {
-  content: '';
-  position: absolute;
-  inset: -20%;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    radial-gradient(1.4px 1.4px at 12% 22%, #fff, transparent),
-    radial-gradient(1.2px 1.2px at 34% 68%, #cfe3ff, transparent),
-    radial-gradient(1.6px 1.6px at 58% 14%, #fff, transparent),
-    radial-gradient(1.1px 1.1px at 71% 51%, #e6d4ff, transparent),
-    radial-gradient(1.5px 1.5px at 88% 33%, #fff, transparent),
-    radial-gradient(1.2px 1.2px at 21% 84%, #fff, transparent),
-    radial-gradient(1.3px 1.3px at 46% 91%, #cfe3ff, transparent),
-    radial-gradient(1.1px 1.1px at 64% 77%, #fff, transparent),
-    radial-gradient(1.6px 1.6px at 93% 66%, #fff, transparent),
-    radial-gradient(1.2px 1.2px at 8% 55%, #e6d4ff, transparent);
-  background-repeat: repeat;
-  background-size: 320px 320px;
-  animation: star-drift 90s linear infinite, star-twinkle 5s ease-in-out infinite;
-}
-/* slow nebula pulse */
+/* the galaxy band: a faint diagonal wash of starlight, plus a couple of very
+   dim distant glows so the black doesn't read as a flat void */
 body[data-board='galaxy'] .game-main::after {
   content: '';
   position: absolute;
@@ -3380,44 +3355,72 @@ body[data-board='galaxy'] .game-main::after {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(600px 400px at 25% 30%, rgba(120, 70, 220, 0.22), transparent 70%),
-    radial-gradient(500px 360px at 78% 72%, rgba(40, 120, 220, 0.2), transparent 70%);
-  animation: nebula-pulse 14s ease-in-out infinite;
+    linear-gradient(115deg, transparent 34%, rgba(150, 170, 255, 0.1) 50%, transparent 66%),
+    radial-gradient(40% 30% at 68% 42%, rgba(90, 120, 255, 0.1), transparent 70%),
+    radial-gradient(34% 26% at 30% 70%, rgba(180, 90, 220, 0.08), transparent 70%);
+  animation: galaxy-band 26s ease-in-out infinite alternate;
+}
+/* two star layers at different depths, drifting + twinkling */
+body[data-board='galaxy'] .game-main::before {
+  content: '';
+  position: absolute;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.6px 1.6px at 12% 22%, #fff, transparent),
+    radial-gradient(2px 2px at 34% 68%, #eaf0ff, transparent),
+    radial-gradient(1.4px 1.4px at 58% 14%, #fff, transparent),
+    radial-gradient(1.3px 1.3px at 71% 51%, #dfe6ff, transparent),
+    radial-gradient(2.2px 2.2px at 88% 33%, #fff, transparent),
+    radial-gradient(1.4px 1.4px at 21% 84%, #fff, transparent),
+    radial-gradient(1.6px 1.6px at 46% 91%, #eaf0ff, transparent),
+    radial-gradient(1.3px 1.3px at 64% 77%, #fff, transparent),
+    radial-gradient(2px 2px at 93% 66%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 8% 55%, #dfe6ff, transparent),
+    radial-gradient(1.2px 1.2px at 50% 40%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 78% 88%, #fff, transparent);
+  background-repeat: repeat;
+  background-size: 300px 300px;
+  animation: star-drift 120s linear infinite, star-twinkle 4s ease-in-out infinite;
 }
 body[data-board='galaxy'] .board-frame {
-  --frame-bg: linear-gradient(165deg, rgba(52, 38, 96, 0.5) 0%, rgba(14, 10, 34, 0.62) 100%);
-  border: 1px solid rgba(170, 150, 255, 0.4);
+  --frame-bg: linear-gradient(165deg, rgba(16, 18, 34, 0.62) 0%, rgba(4, 4, 12, 0.72) 100%);
+  border: 1px solid rgba(150, 165, 235, 0.4);
   box-shadow:
-    inset 0 1px 0 rgba(200, 190, 255, 0.25),
-    0 0 44px rgba(120, 90, 255, 0.4),
+    inset 0 1px 0 rgba(190, 200, 255, 0.22),
+    0 0 40px rgba(70, 90, 200, 0.35),
     var(--shadow-lg);
-  backdrop-filter: blur(7px);
+  backdrop-filter: blur(6px);
 }
 
-/* ---------- 🌊 Deep Sea ---------- */
+/* ---------- 🌊 Deep Sea : sunlit water with god-rays + bubbles ---------- */
 body[data-board='abyss'] {
-  --frame-ink: rgba(220, 245, 255, 0.95);
+  --frame-ink: rgba(222, 246, 255, 0.96);
 }
 body[data-board='abyss'] .game-main {
-  background:
-    radial-gradient(900px 700px at 20% 0%, #0b5c7a 0%, transparent 55%),
-    linear-gradient(160deg, #04263a, #052f47 55%, #021826);
+  /* bright teal near the surface (top) fading to deep dark blue below */
+  background: linear-gradient(180deg, #157fa6 0%, #0a5273 34%, #063b57 62%, #021c2c 100%);
 }
-/* light rays sweeping down + rising bubbles */
+/* vertical god-rays from the surface, brightest at the top, gently swaying */
 body[data-board='abyss'] .game-main::before {
   content: '';
   position: absolute;
-  inset: -10%;
+  inset: -10% -10% 0 -10%;
   z-index: -1;
   pointer-events: none;
-  background:
-    repeating-linear-gradient(
-      100deg,
-      rgba(120, 220, 255, 0.05) 0 3%,
-      transparent 3% 12%
-    );
-  animation: sea-rays 12s ease-in-out infinite alternate;
+  background: repeating-linear-gradient(
+    96deg,
+    rgba(190, 240, 255, 0) 0 5%,
+    rgba(190, 240, 255, 0.14) 6.5%,
+    rgba(190, 240, 255, 0) 8% 15%
+  );
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 72%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 72%);
+  transform-origin: top center;
+  animation: sea-rays 9s ease-in-out infinite alternate;
 }
+/* rising bubbles */
 body[data-board='abyss'] .game-main::after {
   content: '';
   position: absolute;
@@ -3425,33 +3428,32 @@ body[data-board='abyss'] .game-main::after {
   z-index: -1;
   pointer-events: none;
   background-image:
-    radial-gradient(3px 3px at 20% 100%, rgba(180, 240, 255, 0.5), transparent),
-    radial-gradient(2px 2px at 45% 100%, rgba(180, 240, 255, 0.4), transparent),
-    radial-gradient(2.5px 2.5px at 70% 100%, rgba(180, 240, 255, 0.5), transparent),
-    radial-gradient(2px 2px at 88% 100%, rgba(180, 240, 255, 0.4), transparent);
-  background-size: 100% 100%;
-  animation: bubbles 9s linear infinite;
+    radial-gradient(3px 3px at 18% 100%, rgba(210, 245, 255, 0.55), transparent 60%),
+    radial-gradient(2px 2px at 42% 100%, rgba(210, 245, 255, 0.45), transparent 60%),
+    radial-gradient(2.5px 2.5px at 63% 100%, rgba(210, 245, 255, 0.5), transparent 60%),
+    radial-gradient(1.8px 1.8px at 82% 100%, rgba(210, 245, 255, 0.45), transparent 60%),
+    radial-gradient(2.2px 2.2px at 92% 100%, rgba(210, 245, 255, 0.4), transparent 60%);
+  background-size: 100% 130%;
+  animation: bubbles 11s linear infinite;
 }
 body[data-board='abyss'] .board-frame {
-  --frame-bg: linear-gradient(165deg, rgba(15, 90, 120, 0.5) 0%, rgba(6, 40, 60, 0.62) 100%);
-  border: 1px solid rgba(120, 220, 255, 0.4);
+  --frame-bg: linear-gradient(165deg, rgba(16, 96, 128, 0.55) 0%, rgba(5, 44, 66, 0.68) 100%);
+  border: 1px solid rgba(130, 225, 255, 0.42);
   box-shadow:
-    inset 0 1px 0 rgba(180, 240, 255, 0.25),
-    0 0 40px rgba(40, 180, 230, 0.38),
+    inset 0 1px 0 rgba(190, 245, 255, 0.28),
+    0 0 40px rgba(40, 170, 220, 0.4),
     var(--shadow-lg);
-  backdrop-filter: blur(7px);
+  backdrop-filter: blur(6px);
 }
 
-/* ---------- 🔥 Inferno ---------- */
+/* ---------- 🔥 Inferno : black core with a roaring ember base ---------- */
 body[data-board='inferno'] {
-  --frame-ink: rgba(255, 235, 220, 0.96);
+  --frame-ink: rgba(255, 236, 222, 0.97);
 }
 body[data-board='inferno'] .game-main {
-  background:
-    radial-gradient(900px 600px at 50% 120%, #7a1e05 0%, transparent 60%),
-    linear-gradient(160deg, #1b0904, #260a06 55%, #100403);
+  background: radial-gradient(120% 90% at 50% 118%, #2a0b03 0%, #120402 46%, #070202 78%);
 }
-/* flickering ember glow rising from the bottom */
+/* layered flame glow rising from the bottom, flickering */
 body[data-board='inferno'] .game-main::before {
   content: '';
   position: absolute;
@@ -3459,11 +3461,13 @@ body[data-board='inferno'] .game-main::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(700px 300px at 50% 108%, rgba(255, 120, 20, 0.4), transparent 70%),
-    radial-gradient(400px 220px at 25% 112%, rgba(255, 60, 10, 0.3), transparent 70%),
-    radial-gradient(400px 220px at 78% 110%, rgba(255, 90, 10, 0.3), transparent 70%);
-  animation: ember-flicker 4s ease-in-out infinite;
+    radial-gradient(80% 42% at 50% 116%, rgba(255, 170, 40, 0.55), transparent 66%),
+    radial-gradient(55% 34% at 28% 120%, rgba(255, 70, 12, 0.5), transparent 66%),
+    radial-gradient(55% 34% at 74% 118%, rgba(255, 110, 20, 0.5), transparent 66%),
+    radial-gradient(100% 60% at 50% 128%, rgba(120, 20, 4, 0.5), transparent 70%);
+  animation: ember-flicker 3.2s ease-in-out infinite;
 }
+/* sparks drifting up */
 body[data-board='inferno'] .game-main::after {
   content: '';
   position: absolute;
@@ -3471,65 +3475,70 @@ body[data-board='inferno'] .game-main::after {
   z-index: -1;
   pointer-events: none;
   background-image:
-    radial-gradient(2px 2px at 30% 100%, rgba(255, 180, 60, 0.7), transparent),
-    radial-gradient(1.6px 1.6px at 55% 100%, rgba(255, 140, 40, 0.6), transparent),
-    radial-gradient(2.2px 2.2px at 72% 100%, rgba(255, 200, 80, 0.7), transparent);
-  animation: embers-rise 7s linear infinite;
+    radial-gradient(2.2px 2.2px at 28% 100%, rgba(255, 190, 70, 0.9), transparent 60%),
+    radial-gradient(1.6px 1.6px at 48% 100%, rgba(255, 140, 40, 0.8), transparent 60%),
+    radial-gradient(2.4px 2.4px at 66% 100%, rgba(255, 210, 90, 0.9), transparent 60%),
+    radial-gradient(1.8px 1.8px at 84% 100%, rgba(255, 160, 50, 0.8), transparent 60%);
+  background-size: 100% 130%;
+  animation: embers-rise 6s linear infinite;
 }
 body[data-board='inferno'] .board-frame {
-  --frame-bg: linear-gradient(165deg, #7a2a10 0%, #431305 45%, #611f0a 70%, #300d03 100%);
-  border: 1px solid rgba(255, 150, 60, 0.5);
+  --frame-bg: linear-gradient(165deg, #6e2408 0%, #2c0c02 45%, #521805 70%, #1c0602 100%);
+  border: 1px solid rgba(255, 150, 55, 0.55);
   box-shadow:
-    inset 0 1px 0 rgba(255, 180, 90, 0.3),
-    0 0 44px rgba(255, 90, 20, 0.45),
+    inset 0 1px 0 rgba(255, 185, 95, 0.32),
+    0 0 46px rgba(255, 85, 15, 0.5),
     var(--shadow-lg);
 }
 
-/* ---------- ✨ Aurora ---------- */
+/* ---------- ✨ Aurora : vivid shifting curtains over a night sky ---------- */
 body[data-board='aurora'] {
-  --frame-ink: rgba(235, 255, 245, 0.96);
+  --frame-ink: rgba(236, 255, 246, 0.96);
 }
 body[data-board='aurora'] .game-main {
-  background: linear-gradient(160deg, #04121a, #071a24 55%, #030d14);
+  background: linear-gradient(180deg, #041019 0%, #061622 55%, #02090f 100%);
 }
-/* shifting aurora curtains */
+/* the curtains: three coloured bands that slide and breathe */
 body[data-board='aurora'] .game-main::before {
   content: '';
   position: absolute;
-  inset: -30%;
+  inset: -35% -20%;
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(60% 40% at 30% 25%, rgba(60, 240, 170, 0.28), transparent 70%),
-    radial-gradient(55% 45% at 70% 35%, rgba(120, 90, 255, 0.26), transparent 70%),
-    radial-gradient(50% 40% at 50% 60%, rgba(255, 90, 200, 0.2), transparent 70%);
-  filter: blur(14px);
-  animation: aurora-flow 16s ease-in-out infinite alternate;
+    radial-gradient(45% 70% at 22% 30%, rgba(50, 255, 170, 0.42), transparent 62%),
+    radial-gradient(42% 66% at 52% 22%, rgba(70, 150, 255, 0.36), transparent 62%),
+    radial-gradient(48% 72% at 78% 34%, rgba(210, 80, 230, 0.34), transparent 62%);
+  filter: blur(22px);
+  animation: aurora-flow 14s ease-in-out infinite alternate;
 }
+/* faint stars above the aurora */
 body[data-board='aurora'] .game-main::after {
   content: '';
   position: absolute;
-  inset: -20%;
+  inset: -15%;
   z-index: -1;
   pointer-events: none;
   background-image:
-    radial-gradient(1.3px 1.3px at 20% 30%, #fff, transparent),
-    radial-gradient(1.1px 1.1px at 60% 65%, #dfffe9, transparent),
-    radial-gradient(1.4px 1.4px at 85% 20%, #fff, transparent);
-  background-size: 260px 260px;
-  animation: star-twinkle 6s ease-in-out infinite;
+    radial-gradient(1.4px 1.4px at 20% 26%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 60% 62%, #dfffe9, transparent),
+    radial-gradient(1.5px 1.5px at 85% 18%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 40% 82%, #fff, transparent),
+    radial-gradient(1.3px 1.3px at 74% 74%, #eafff2, transparent);
+  background-size: 240px 240px;
+  animation: star-twinkle 5s ease-in-out infinite;
 }
 body[data-board='aurora'] .board-frame {
-  --frame-bg: linear-gradient(165deg, rgba(20, 70, 70, 0.5) 0%, rgba(30, 30, 80, 0.6) 100%);
-  border: 1px solid rgba(120, 255, 200, 0.35);
+  --frame-bg: linear-gradient(165deg, rgba(14, 64, 66, 0.55) 0%, rgba(20, 26, 66, 0.66) 100%);
+  border: 1px solid rgba(120, 255, 205, 0.4);
   box-shadow:
-    inset 0 1px 0 rgba(200, 255, 230, 0.2),
-    0 0 40px rgba(90, 220, 180, 0.35),
+    inset 0 1px 0 rgba(205, 255, 232, 0.24),
+    0 0 42px rgba(70, 220, 175, 0.4),
     var(--shadow-lg);
-  backdrop-filter: blur(7px);
+  backdrop-filter: blur(6px);
 }
 
-/* on all four, the wordmarks and rule ovals read light */
+/* wordmarks and rule ovals read light on all four */
 body[data-board='galaxy'] .bf-word,
 body[data-board='abyss'] .bf-word,
 body[data-board='inferno'] .bf-word,
@@ -3544,63 +3553,69 @@ body[data-board='aurora'] .bf-oval {
 
 @keyframes star-drift {
   to {
-    transform: translate3d(-320px, -180px, 0);
+    transform: translate3d(-300px, -160px, 0);
   }
 }
 @keyframes star-twinkle {
   50% {
-    opacity: 0.55;
+    opacity: 0.5;
   }
 }
-@keyframes nebula-pulse {
+@keyframes galaxy-band {
   50% {
-    opacity: 0.6;
-    transform: scale(1.08);
+    opacity: 0.7;
+    transform: translate3d(3%, 2%, 0);
   }
 }
 @keyframes sea-rays {
-  to {
-    transform: translateX(40px);
+  from {
+    transform: skewX(-4deg) translateX(-3%);
     opacity: 0.7;
+  }
+  to {
+    transform: skewX(5deg) translateX(3%);
+    opacity: 1;
   }
 }
 @keyframes bubbles {
   from {
-    background-position: 0 0, 0 0, 0 0, 0 0;
-    opacity: 0.9;
+    background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
+    opacity: 0.85;
   }
   to {
-    background-position: 0 -600px, 0 -520px, 0 -680px, 0 -560px;
-    opacity: 0.3;
+    background-position: 0 -680px, 0 -560px, 0 -720px, 0 -600px, 0 -640px;
+    opacity: 0.25;
   }
 }
 @keyframes ember-flicker {
-  30% {
-    opacity: 0.8;
+  25% {
+    opacity: 0.82;
+    transform: scaleY(1.03);
   }
   55% {
     opacity: 1;
   }
   80% {
-    opacity: 0.72;
+    opacity: 0.74;
+    transform: scaleY(0.98);
   }
 }
 @keyframes embers-rise {
   from {
-    background-position: 0 0, 0 0, 0 0;
+    background-position: 0 0, 0 0, 0 0, 0 0;
     opacity: 0.9;
   }
   to {
-    background-position: 0 -480px, 0 -560px, 0 -420px;
+    background-position: 0 -520px, 0 -600px, 0 -470px, 0 -560px;
     opacity: 0.2;
   }
 }
 @keyframes aurora-flow {
   50% {
-    transform: translate3d(6%, 4%, 0) scale(1.12);
+    transform: translate3d(5%, 3%, 0) scale(1.14);
   }
   to {
-    transform: translate3d(-5%, -3%, 0) scale(1.05);
+    transform: translate3d(-4%, -2%, 0) scale(1.06);
   }
 }
 
