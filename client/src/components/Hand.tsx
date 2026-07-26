@@ -61,11 +61,17 @@ export default function Hand() {
     myTurn &&
     me &&
     hand.every((card) => legalCellsOnBoard(game.board, me.team, card, game.layout).length === 0);
-  // exchanging a dead card is optional, offer it, but never block the pass
-  const canExchange =
-    noLegalMoves &&
+  // dead cards you could swap (non-jacks whose two spaces are both taken)
+  const deadCount = hand.filter(
+    (card) => !isJack(card) && isDeadOnBoard(game.board, card, game.layout),
+  ).length;
+  const canSwapDead =
+    myTurn &&
+    game.settings.allowDeadExchange !== false &&
     !game.deadExchangedThisTurn &&
-    hand.some((card) => isDeadOnBoard(game.board, card, game.layout));
+    deadCount > 0;
+  // exchanging a dead card is optional, offer it, but never block the pass
+  const canExchange = noLegalMoves && !game.deadExchangedThisTurn && deadCount > 0;
 
   const onDeckClick = () => {
     if (game.settings.strictDraw && game.yourPendingDraws > 0) {
@@ -182,6 +188,26 @@ export default function Hand() {
       </div>
 
       <div className="hand-side">
+        {myTurn && deadCount > 0 && (
+          <div className="dead-tools">
+            <span className="dead-count">
+              {deadCount} dead card{deadCount > 1 ? 's' : ''}
+            </span>
+            {canSwapDead && (
+              <button
+                className="btn btn-secondary btn-sm refresh-dead"
+                onClick={() => {
+                  sfx.draw();
+                  playMove({ type: 'swapDead' });
+                  selectCard(null);
+                }}
+                title="Swap every dead card for a fresh one"
+              >
+                ↻ Refresh {deadCount > 1 ? 'all' : ''}
+              </button>
+            )}
+          </div>
+        )}
         {noLegalMoves && (
           <div className="stuck-actions">
             {canExchange && <span className="exchange-hint">Tap a dead card to exchange ↻</span>}

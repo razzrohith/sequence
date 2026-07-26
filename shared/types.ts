@@ -70,6 +70,9 @@ export interface GameSettings {
   undoMode?: 'off' | 'instant' | 'approval';
   /** deal the 48 faces to random cells instead of the printed board */
   randomBoard?: boolean;
+  /** bias the shuffle so jacks (the power cards) come roughly twice as early;
+   * the deck stays the real 104 cards, they are just ordered nearer the top */
+  powerCards?: boolean;
   /** board theme the host has chosen for the whole room; players may still
    * override it locally in Settings */
   boardTheme?: string;
@@ -84,6 +87,7 @@ export type MoveKind =
   | 'place'
   | 'remove'
   | 'exchangeDead'
+  | 'swapDead'
   | 'pass'
   | 'draw'
   | 'forfeitDraw';
@@ -97,6 +101,8 @@ export interface MoveEvent {
   r?: number;
   c?: number;
   newSequences?: SequenceRecord[];
+  /** number of dead cards refreshed by a swapDead */
+  swapped?: number;
   n: number; // monotonically increasing event number
 }
 
@@ -114,6 +120,9 @@ export interface GameCore {
   /** sequences required to win */
   required: number;
   winner: Team | null;
+  /** how the game ended: a completed sequence, or a locked/full board scored
+   * out by sequences then chips */
+  endReason?: 'sequence' | 'locked';
   /** true when no player can ever move again (all hands empty), a draw */
   stalemate: boolean;
   /** turns since a sequence was last completed (dead-position detection) */
@@ -144,6 +153,7 @@ export interface ClientGameState {
   sequences: SequenceRecord[];
   required: number;
   winner: Team | null;
+  endReason?: 'sequence' | 'locked';
   stalemate: boolean;
   settings: GameSettings;
   lastMove: MoveEvent | null;
@@ -168,6 +178,7 @@ export type Move =
   | { type: 'place'; card: Card; r: number; c: number }
   | { type: 'remove'; card: Card; r: number; c: number }
   | { type: 'exchangeDead'; card: Card }
+  | { type: 'swapDead' }
   | { type: 'draw' }
   | { type: 'pass' };
 

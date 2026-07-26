@@ -490,6 +490,7 @@ export class NetHost {
     winSequences?: number;
     boardTheme?: string;
     randomBoard?: boolean;
+    powerCards?: boolean;
     undoMode?: string;
     hints?: boolean;
     firstPlayer?: string;
@@ -514,6 +515,7 @@ export class NetHost {
     if (typeof s.turnSeconds === 'number') this.settings.turnSeconds = s.turnSeconds;
     if (s.winSequences === 1 || s.winSequences === 2) this.settings.winSequences = s.winSequences;
     if (typeof s.randomBoard === 'boolean') this.settings.randomBoard = s.randomBoard;
+    if (typeof s.powerCards === 'boolean') this.settings.powerCards = s.powerCards;
     if (s.undoMode === 'off' || s.undoMode === 'instant' || s.undoMode === 'approval')
       this.settings.undoMode = s.undoMode;
     if (typeof s.hints === 'boolean') this.settings.hints = s.hints;

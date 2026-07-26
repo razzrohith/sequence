@@ -123,12 +123,19 @@ export default function WinOverlay() {
         <h1 style={{ color: winner ? TEAM_HEX[winner] : '#9ca3af' }}>
           {winner ? `${TEAM_LABEL[winner]} WINS!` : "IT'S A DRAW"}
         </h1>
+        {game.endReason === 'locked' && (
+          <p className="win-tag">Board locked, decided on sequences then chips</p>
+        )}
         <p className="win-sub">
           {winner
-            ? won
-              ? 'Brilliant! Your team completed the sequences. 🏆'
-              : 'So close! Run it back?'
-            : 'Every hand is empty. Nobody can move. Rare!'}
+            ? game.endReason === 'locked'
+              ? won
+                ? 'The board jammed up and your team came out ahead. 🏆'
+                : 'The board jammed up and the other team edged it.'
+              : won
+                ? 'Brilliant! Your team completed the sequences. 🏆'
+                : 'So close! Run it back?'
+            : 'Nobody could move and the teams were dead level. Rare!'}
         </p>
 
         <Recap />

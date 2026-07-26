@@ -538,6 +538,85 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
   assert(toClientState(g, 'p0').timeBank?.p0 === left, 'clock: the bank reaches the client');
 }
 
+// power cards: jacks are ordered earlier, but the deck stays the real 104 cards
+{
+  const plain: number[] = [];
+  const power: number[] = [];
+  for (let i = 0; i < 60; i++) {
+    const g1 = createGame(
+      [0, 1].map((n) => ({ id: `p${n}`, name: `P${n}`, isBot: true, team: TEAMS[n % 2] })),
+      defaultSettings(),
+      mulberry32(4000 + i),
+    );
+    const g2 = createGame(
+      [0, 1].map((n) => ({ id: `p${n}`, name: `P${n}`, isBot: true, team: TEAMS[n % 2] })),
+      defaultSettings({ powerCards: true }),
+      mulberry32(4000 + i),
+    );
+    // full deck = deck + both starting hands (14) + none discarded yet
+    const all1 = [...g1.players.flatMap((p) => p.hand), ...g1.deck];
+    const all2 = [...g2.players.flatMap((p) => p.hand), ...g2.deck];
+    assert(all1.length === 104 && all2.length === 104, 'power cards: deck is still 104');
+    const jacks1 = all1.filter((c) => c[0] === 'J').length;
+    const jacks2 = all2.filter((c) => c[0] === 'J').length;
+    if (i === 0) assert(jacks1 === 8 && jacks2 === 8, 'power cards: still exactly 8 jacks');
+    // average position of the jacks (0 = top of what gets dealt/drawn first)
+    const avgJackPos = (arr: string[]) => {
+      const idx = arr.map((c, k) => (c[0] === 'J' ? k : -1)).filter((k) => k >= 0);
+      return idx.reduce((a, b) => a + b, 0) / idx.length;
+    };
+    plain.push(avgJackPos(all1));
+    power.push(avgJackPos(all2));
+  }
+  const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+  assert(mean(power) < mean(plain) - 5, 'power cards: jacks really do come earlier on average');
+}
+
+// swap all dead cards at once: hand size and card totals are preserved
+{
+  const g = createGame(
+    [0, 1].map((i) => ({ id: `p${i}`, name: `P${i}`, isBot: true, team: TEAMS[i % 2] })),
+    defaultSettings(),
+  );
+  // make three of p0's cards dead by covering both cells of each
+  const deadFaces = ['2S', '3S', '4S'];
+  for (const f of deadFaces) setChips(g, 'blue', positionsFor(g.layout).get(f)!);
+  giveHand(g, 0, [...deadFaces, '7D']); // 3 dead + 1 live
+  const tally = (x: GameCore) =>
+    x.deck.length + x.discard.length + x.players.reduce((a, p) => a + p.hand.length, 0);
+  const totalBefore = tally(g);
+  const before = g.deck.length;
+  const res = applyMove(g, 'p0', { type: 'swapDead' });
+  assert(res.ok, 'swap-dead: is a legal move when you hold dead cards');
+  assert(g.players[0].hand.length === 4, 'swap-dead: hand size is unchanged');
+  assert(!deadFaces.some((f) => g.players[0].hand.includes(f)), 'swap-dead: the dead cards are gone');
+  assert(g.players[0].hand.includes('7D'), 'swap-dead: live cards are kept');
+  assert(g.deck.length === before - 3, 'swap-dead: exactly as many drawn as discarded');
+  assert(g.turn === 0, 'swap-dead: your turn continues');
+  assert(tally(g) === totalBefore, 'swap-dead: cards are conserved across the swap');
+  assert(!applyMove(g, 'p0', { type: 'swapDead' }).ok, 'swap-dead: only once per turn');
+}
+
+// scored endgame: a locked board is decided by sequences, then chips, then draw
+{
+  const g = createGame(
+    [0, 1].map((i) => ({ id: `p${i}`, name: `P${i}`, isBot: true, team: TEAMS[i % 2] })),
+    defaultSettings(),
+  );
+  // red has a completed sequence, blue does not; empty the deck and both hands
+  runOf(g, 'red', 4, 2);
+  g.sequences.push({ team: 'red', cells: [] }); // pretend red completed one
+  g.deck = [];
+  g.discard = [];
+  g.players.forEach((p) => (p.hand = []));
+  // trigger the terminal check via a pass
+  const g2 = JSON.parse(JSON.stringify(g)) as GameCore;
+  g2.rng = Math.random;
+  applyMove(g2, 'p0', { type: 'pass' });
+  assert(g2.winner === 'red', 'scored endgame: the team ahead on sequences wins a locked board');
+  assert(g2.endReason === 'locked', 'scored endgame: the win is marked as a locked-board result');
+}
+
 // the clock must actually drive the turn deadline, not just be displayed
 {
   const g = createGame(
@@ -720,11 +799,16 @@ function simulate(
     game.discard.length +
     game.players.reduce((a, p) => a + p.hand.length, 0);
   if (total !== 104) throw new Error(`Card conservation broken: ${total} != 104`);
-  if (game.winner) {
+  if (game.winner && game.endReason !== 'locked') {
+    // a normal win requires the sequence count; a locked-board win is scored out
+    // by most sequences then chips and legitimately has fewer
     const winSeqs = game.sequences.filter((s) => s.team === game.winner).length;
     if (winSeqs < game.required) throw new Error('Winner lacks required sequences');
   }
-  const outcome = game.winner ? `${game.winner} wins` : 'stalemate draw';
+  if (game.winner && game.stalemate) throw new Error('game both won and drawn');
+  const outcome = game.winner
+    ? `${game.winner} wins${game.endReason === 'locked' ? ' (locked)' : ''}`
+    : 'stalemate draw';
   return `${playerCount}p/${teamCount}t${strictDraw ? '/strict' : ''}${randomBoard ? '/shuffled' : ''}: ${outcome} in ${moves} moves`;
 }
 

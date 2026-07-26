@@ -118,6 +118,12 @@ export default function Board() {
     selectCard(null);
   };
 
+  // how many of the 96 playable cells are taken (corners are always free)
+  const chipCount = game.board.reduce(
+    (n, row, r) => n + row.filter((cell, c) => !isCorner(r, c) && cell.chip !== null).length,
+    0,
+  );
+
   const lm = game.lastMove;
   const spoken = lm
     ? `${lm.playerName} ${
@@ -138,6 +144,16 @@ export default function Board() {
       {/* announced to screen readers only, so opponents' moves are not silent */}
       <div className="sr-only" role="status" aria-live="polite">
         {spoken}
+      </div>
+      {/* late-game tension: how full the board is and how many cards remain */}
+      <div className="board-meter" aria-hidden>
+        <span className="bm-item" title="Spaces filled">
+          <span className="bm-bar">
+            <span className="bm-fill" style={{ width: `${(chipCount / 96) * 100}%` }} />
+          </span>
+          {chipCount}/96 full
+        </span>
+        <span className="bm-item" title="Cards left in the deck">🂠 {game.deckCount}</span>
       </div>
     <div className={`board-frame ${myTurn ? 'your-turn' : ''} ${game.winner ? 'won' : ''}`}>
       <span className="bf-word left">SEQUENCE</span>

@@ -376,6 +376,18 @@ export default function Lobby() {
             <label className="check">
               <input
                 type="checkbox"
+                checked={!!room.settings.powerCards}
+                onChange={(e) => updateSettings({ powerCards: e.target.checked })}
+              />
+              <span>
+                More power cards <i>(jacks come about twice as early; still the real 104
+                cards, just dealt sooner)</i>
+              </span>
+            </label>
+
+            <label className="check">
+              <input
+                type="checkbox"
                 checked={room.settings.strictDraw}
                 onChange={(e) => updateSettings({ strictDraw: e.target.checked })}
               />

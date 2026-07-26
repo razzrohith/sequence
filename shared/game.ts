@@ -111,6 +111,7 @@ export function createGame(
 ): GameCore {
   const layout = settings.randomBoard ? shuffledLayout(rng) : BOARD_LAYOUT;
   const deck = createDeck(rng);
+  if (settings.powerCards) reorderPowerCards(deck, rng);
   const handSize = HAND_SIZES[seatedPlayers.length] ?? 6;
   const players: ServerPlayer[] = seatedPlayers.map((p) => ({
     id: p.id,
@@ -160,6 +161,7 @@ export function defaultSettings(partial: Partial<GameSettings> = {}): GameSettin
     turnSeconds: partial.turnSeconds ?? 0,
     winSequences: partial.winSequences,
     randomBoard: partial.randomBoard,
+    powerCards: partial.powerCards,
     undoMode: partial.undoMode ?? 'approval',
     hints: partial.hints ?? false,
     firstPlayer: partial.firstPlayer ?? 'first',
@@ -320,6 +322,57 @@ export function turnDeadlineFor(game: GameCore): number | null {
 }
 
 /** Sequences this team needs to win, including any handicap on them. */
+/** Re-order a deck so jacks tend to sit nearer the top, about twice as likely
+ * to be dealt or drawn early, without adding or removing any card. Uses
+ * weighted sampling keys (Efraimidis-Spirakis): a higher weight makes a card's
+ * key stochastically larger, so weight-2 jacks cluster toward the front. */
+export function reorderPowerCards(deck: Card[], rng: () => number = Math.random): Card[] {
+  const keyed = deck.map((c) => ({
+    c,
+    k: Math.pow(rng() || 1e-9, 1 / (isJack(c) ? 2 : 1)),
+  }));
+  keyed.sort((a, b) => b.k - a.k);
+  for (let i = 0; i < deck.length; i++) deck[i] = keyed[i].c;
+  return deck;
+}
+
+/** Non-corner cells currently holding a chip (the board fills at 96). */
+export function chipsOnBoard(game: GameCore): number {
+  let n = 0;
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++)
+      if (!isCorner(r, c) && game.board[r][c].chip !== null) n++;
+  return n;
+}
+
+function teamChipCount(game: GameCore, team: Team): number {
+  let n = 0;
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++)
+      if (game.board[r][c].chip === team) n++;
+  return n;
+}
+
+/** End a locked or full board with a real result instead of dragging: the team
+ * with the most sequences wins, ties broken by chips on the board, and only a
+ * genuine tie on both is a draw. */
+function resolveLocked(game: GameCore) {
+  if (game.winner || game.stalemate) return;
+  const teams = [...new Set(game.players.map((p) => p.team))];
+  const score = (t: Team): [number, number] => [teamSequenceCount(game, t), teamChipCount(game, t)];
+  const ranked = teams
+    .map((t) => ({ t, s: score(t) }))
+    .sort((a, b) => b.s[0] - a.s[0] || b.s[1] - a.s[1]);
+  const top = ranked[0];
+  const tie = ranked.filter((x) => x.s[0] === top.s[0] && x.s[1] === top.s[1]);
+  if (tie.length === 1) {
+    game.winner = top.t;
+    game.endReason = 'locked';
+  } else {
+    game.stalemate = true;
+  }
+}
+
 export function requiredFor(game: GameCore, team: Team): number {
   const extra = game.settings.handicapTeam === team ? (game.settings.handicapExtra ?? 0) : 0;
   return game.required + Math.max(0, extra);
@@ -332,7 +385,7 @@ function teamSequenceCount(game: GameCore, team: Team): number {
 /** After this many consecutive turns with no new sequence, the position is
  * declared dead and the game drawn. A real game averages 20 to 80 turns; this
  * only triggers on genuinely locked boards (mostly 3-team endgames). */
-const DEAD_POSITION_TURNS = 400;
+const DEAD_POSITION_TURNS = 120;
 
 function advanceTurn(game: GameCore) {
   // chess clock: bill the turn that just ended to the player who had it
@@ -352,11 +405,13 @@ function advanceTurn(game: GameCore) {
   // moves, so an owed draw with cards still available means the game isn't dead.
   const cardsLeft = game.deck.length + game.discard.length > 0;
   const anyClaimableDraw = game.players.some((p) => (game.pendingDraws[p.id] ?? 0) > 0);
-  if (game.players.every((p) => p.hand.length === 0) && !(cardsLeft && anyClaimableDraw)) {
-    game.stalemate = true;
-  }
-  if (game.turnsWithoutSequence >= DEAD_POSITION_TURNS) {
-    game.stalemate = true;
+  const allHandsEmpty =
+    game.players.every((p) => p.hand.length === 0) && !(cardsLeft && anyClaimableDraw);
+  // no cards left anywhere and nobody can play or remove: the board is locked
+  const nobodyCanMove =
+    !cardsLeft && game.players.every((p) => !hasAnyLegalMove(game, p));
+  if (allHandsEmpty || nobodyCanMove || game.turnsWithoutSequence >= DEAD_POSITION_TURNS) {
+    resolveLocked(game);
   }
 }
 
@@ -449,6 +504,36 @@ export function applyMove(game: GameCore, playerId: string, move: Move): ApplyRe
       return { ok: true, events };
     }
 
+    case 'swapDead': {
+      // refresh EVERY dead card in one go (still counts as this turn's exchange,
+      // so it can't be repeated). Hand size is preserved: N discarded, N drawn.
+      if (game.settings.allowDeadExchange === false)
+        return { ok: false, error: 'Swapping dead cards is turned off for this game.' };
+      if (game.deadExchangedThisTurn)
+        return { ok: false, error: 'You can only exchange dead cards once per turn.' };
+      const deadCards = player.hand.filter((c) => isDeadCard(game, c) && !isJack(c));
+      if (deadCards.length === 0) return { ok: false, error: 'You have no dead cards.' };
+      for (const c of deadCards) {
+        const idx = player.hand.indexOf(c);
+        if (idx !== -1) {
+          player.hand.splice(idx, 1);
+          game.discard.push(c);
+        }
+      }
+      for (let i = 0; i < deadCards.length; i++) drawCard(game, player);
+      game.deadExchangedThisTurn = true;
+      events.push(
+        pushEvent(game, {
+          playerId,
+          playerName: player.name,
+          team: player.team,
+          kind: 'swapDead',
+          swapped: deadCards.length,
+        }),
+      );
+      return { ok: true, events };
+    }
+
     case 'place': {
       if (!player.hand.includes(move.card)) return { ok: false, error: 'Card not in hand.' };
       const { r, c } = move;
@@ -482,6 +567,7 @@ export function applyMove(game: GameCore, playerId: string, move: Move): ApplyRe
       if (newSeqs.length > 0) game.turnsWithoutSequence = 0;
       if (teamSequenceCount(game, player.team) >= requiredFor(game, player.team)) {
         game.winner = player.team;
+        game.endReason = 'sequence';
       } else {
         advanceTurn(game);
       }
@@ -581,6 +667,7 @@ export function toClientState(game: GameCore, playerId: string): ClientGameState
     sequences: game.sequences,
     required: game.required,
     winner: game.winner,
+    endReason: game.endReason,
     stalemate: game.stalemate,
     settings: game.settings,
     lastMove: game.log.length ? game.log[game.log.length - 1] : null,

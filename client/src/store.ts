@@ -366,6 +366,7 @@ interface Store {
     winSequences?: number;
     boardTheme?: string;
     randomBoard?: boolean;
+    powerCards?: boolean;
     undoMode?: 'off' | 'instant' | 'approval';
     hints?: boolean;
     firstPlayer?: 'first' | 'random';
@@ -491,6 +492,11 @@ export const useStore = create<Store>((set, get) => ({
         );
       } else if (e.kind === 'exchangeDead') {
         if (!mine) get().toast(`${e.playerName} exchanged a dead card`);
+      } else if (e.kind === 'swapDead') {
+        const n = e.swapped ?? 0;
+        get().toast(
+          `${mine ? 'You' : e.playerName} refreshed ${n} dead card${n === 1 ? '' : 's'}`,
+        );
       } else if (e.kind === 'forfeitDraw') {
         get().toast(
           mine
