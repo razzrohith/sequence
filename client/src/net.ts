@@ -503,7 +503,10 @@ export class NetHost {
   }) {
     // the board theme is purely cosmetic, so the host may change it mid-game
     const themed = typeof s.boardTheme === 'string' && /^[a-z]{2,12}$/.test(s.boardTheme);
-    if (themed) this.settings.boardTheme = s.boardTheme;
+    if (themed) {
+      this.settings.boardTheme = s.boardTheme;
+      this.settings.boardEpoch = (this.settings.boardEpoch ?? 0) + 1;
+    }
     if (this.started) {
       if (themed) this.pushRoom();
       return;
@@ -946,8 +949,22 @@ export class NetGuest {
     else if (t === 'hostgone') this.handleHostGone(false);
     // a deliberate Leave: the host is gone for good, so take over immediately
     else if (t === 'hostleft') this.handleHostGone(true);
-    // someone else is the heir and is taking over: show a status, don't close
-    else if (t === 'hostmigrating') this.h.onNotice('The host left. A new host is taking over…');
+    // someone else is the heir and is taking over: show a status, and watch for
+    // the new host. The heir itself ignores this (its private 'hostleft' handles
+    // promotion); everyone else closes only if no new host appears.
+    else if (t === 'hostmigrating') {
+      const room = this.lastRoom;
+      const heir = room?.players.find((p) => !p.isBot && p.connected && p.id !== room.hostId);
+      if (!(heir && heir.id === this.playerId)) {
+        this.h.onNotice('The host left. A new host is taking over…');
+        const roomAtGone = this.lastRoom;
+        this.later(() => {
+          // migrating is set only if I somehow became the heir mid-way
+          if (this.lastRoom === roomAtGone && !this.migrating)
+            this.h.onClosed('The room closed.');
+        }, 10000);
+      }
+    }
     else if (t === 'closed') this.h.onClosed(String(msg.reason ?? 'The room closed.'));
     else if (t === 'notice') this.h.onNotice(String(msg.m ?? ''));
   }

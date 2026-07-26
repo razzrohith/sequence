@@ -76,6 +76,9 @@ export interface GameSettings {
   /** board theme the host has chosen for the whole room; players may still
    * override it locally in Settings */
   boardTheme?: string;
+  /** bumped on every host board change (even to the same theme) so clients can
+   * tell a deliberate re-sync from a routine room update */
+  boardEpoch?: number;
 }
 
 export interface SequenceRecord {

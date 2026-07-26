@@ -249,15 +249,16 @@ function loadStats(): Stats {
  *    clearing personal overrides, so "everyone's board changes" really happens.
  * We detect a host change by the room theme value changing. */
 let boardOverridden = false;
-let lastRoomTheme: string | undefined;
+let lastBoardEpoch = 0;
 
-function applyBoardTheme(roomTheme: string | undefined, prefTheme: string) {
+function applyBoardTheme(roomTheme: string | undefined, prefTheme: string): string {
+  const theme = (boardOverridden ? prefTheme : roomTheme || prefTheme) || 'classic';
   try {
-    const theme = boardOverridden ? prefTheme : roomTheme || prefTheme;
-    document.body.dataset.board = theme || 'classic';
+    document.body.dataset.board = theme;
   } catch {
     /* SSR/no-dom */
   }
+  return theme;
 }
 
 /** A quiet nudge when it becomes your turn while the tab is in the background.
@@ -346,6 +347,8 @@ interface Store {
   wasMyTurn: boolean;
 
   prefs: Prefs;
+  /** the board theme actually on screen right now (room default, or your override) */
+  boardView: string;
   stats: Stats;
   emotes: FloatingEmote[];
   spectating: boolean;
@@ -439,6 +442,7 @@ export const useStore = create<Store>((set, get) => ({
   wasMyTurn: false,
 
   prefs: initialPrefs,
+  boardView: initialPrefs.boardTheme,
   stats: loadStats(),
   emotes: [],
   spectating: false,
@@ -577,13 +581,15 @@ export const useStore = create<Store>((set, get) => ({
           view: room.started && s.game ? 'game' : room.started ? s.view : 'lobby',
         }));
         // if the host changed the room board ("for everyone"), re-sync every
-        // client, clearing any personal override so it truly applies to all
-        const rt = room.settings?.boardTheme;
-        if (rt !== lastRoomTheme) {
-          lastRoomTheme = rt;
+        // client, clearing any personal override so it truly applies to all.
+        // Driven by an epoch that bumps on every host board change (even to the
+        // same theme), so re-picking the current theme still re-syncs the table.
+        const ep = room.settings?.boardEpoch ?? 0;
+        if (ep !== lastBoardEpoch) {
+          lastBoardEpoch = ep;
           boardOverridden = false;
         }
-        applyBoardTheme(rt, get().prefs.boardTheme);
+        set({ boardView: applyBoardTheme(room.settings?.boardTheme, get().prefs.boardTheme) });
       },
       onGameState: (g) => {
         if (get().mode !== 'online') return;
@@ -639,8 +645,8 @@ export const useStore = create<Store>((set, get) => ({
     const s = get();
     // leaving the table: forget the room board so your own theme applies again
     boardOverridden = false;
-    lastRoomTheme = undefined;
-    applyBoardTheme(undefined, s.prefs.boardTheme);
+    lastBoardEpoch = 0;
+    set({ boardView: applyBoardTheme(undefined, s.prefs.boardTheme) });
     if (s.net) {
       try {
         s.net.destroy();
@@ -687,6 +693,11 @@ export const useStore = create<Store>((set, get) => ({
     LS.set('seq:prefs', JSON.stringify(prefs));
     applyPrefs(prefs, get().room?.settings?.boardTheme);
     set({ prefs });
+    try {
+      set({ boardView: document.body.dataset.board || 'classic' });
+    } catch {
+      /* no-dom */
+    }
   },
 
   createRoom() {

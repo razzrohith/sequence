@@ -46,6 +46,9 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const playerId = useStore((s) => s.playerId);
   const game = useStore((s) => s.game);
   const updateSettings = useStore((s) => s.updateSettings);
+  // the board actually on screen (room default or your override), which can
+  // differ from prefs.boardTheme after the host set the board in the lobby
+  const boardView = useStore((s) => s.boardView);
 
   // in an online room, the host can change the board for the whole table
   const isHost = mode === 'online' && !!room && room.hostId === playerId;
@@ -98,7 +101,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               {BOARD_THEMES.map((t) => (
                 <button
                   key={t.id}
-                  className={`theme-opt ${prefs.boardTheme === t.id ? 'on' : ''}`}
+                  className={`theme-opt ${boardView === t.id ? 'on' : ''}`}
                   data-board={t.id}
                   onClick={() => pickBoard(t.id, false)}
                 >
@@ -110,7 +113,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
             {isHost && (
               <button
                 className="btn btn-secondary btn-sm apply-all"
-                onClick={() => pickBoard(prefs.boardTheme, true)}
+                onClick={() => pickBoard(boardView, true)}
                 title="Set the board you're viewing for every player in the room"
               >
                 Use this board for everyone
