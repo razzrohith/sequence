@@ -187,6 +187,29 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         />
 
         <div className="setting-group">
+          <span className="setting-label">Board shape</span>
+          <div className="seg">
+            {(
+              [
+                ['portrait', 'Tall'],
+                ['landscape', 'Wide'],
+              ] as const
+            ).map(([v, lbl]) => (
+              <button
+                key={v}
+                className={`seg-btn ${(prefs.boardLayout ?? 'portrait') === v ? 'on' : ''}`}
+                onClick={() => setPref('boardLayout', v)}
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+          <i className="setting-note">
+            Wide rotates the board to fill a wide screen (cards turn sideways).
+          </i>
+        </div>
+
+        <div className="setting-group">
           <span className="setting-label">Card backs</span>
           <div className="seg">
             {CARD_BACKS.map((b) => (

@@ -1069,6 +1069,7 @@ input:focus {
   min-width: 0;
   width: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
 }
@@ -1174,6 +1175,30 @@ body[data-board='ocean'] .board-frame {
       calc(100cqh * var(--fit-h)),
       560px
     );
+  }
+
+  /* Wide board: rotate the whole board 90 degrees so it fills a wide screen.
+     Rotating swaps which axis binds, so the size formula swaps fit-w and fit-h.
+     The frame is taken out of flow and centred, so its (tall) layout box can't
+     overflow; a CSS transform keeps click hit-testing correct, so play is
+     unaffected. Cards turn sideways, like viewing the board from the side. */
+  body[data-orient='landscape'] .board-area {
+    position: relative;
+    justify-content: flex-start;
+  }
+  body[data-orient='landscape'] .board-frame {
+    --board-size: min(
+      calc(100cqw * var(--fit-h)),
+      calc(100cqh * var(--fit-w)),
+      560px
+    );
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+  body[data-orient='landscape'] .board-meter {
+    z-index: 2;
   }
 }
 
@@ -1330,6 +1355,14 @@ body[data-board='ocean'] .board-frame {
 
 .seg.seg-wrap {
   flex-wrap: wrap;
+}
+.setting-note {
+  display: block;
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-style: normal;
+  color: var(--ink-dim);
+  line-height: 1.35;
 }
 .seg-note {
   flex-basis: 100%;

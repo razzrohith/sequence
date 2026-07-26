@@ -50,6 +50,8 @@ export interface Prefs {
   notifyTurn: boolean;
   cardBack: string;
   chipStyle: string;
+  /** board shape: tall (portrait, default) or wide (rotated for wide screens) */
+  boardLayout: 'portrait' | 'landscape';
   haptics: boolean;
   colorblind: boolean;
   reducedMotion: boolean;
@@ -170,6 +172,7 @@ function loadPrefs(): Prefs {
     notifyTurn: saved.notifyTurn ?? false,
     cardBack: saved.cardBack ?? 'classic',
     chipStyle: saved.chipStyle ?? 'plastic',
+    boardLayout: saved.boardLayout ?? 'portrait',
     haptics: saved.haptics ?? true,
     colorblind: saved.colorblind ?? false,
     reducedMotion: saved.reducedMotion ?? prefersReducedMotion(),
@@ -270,6 +273,7 @@ function applyPrefs(p: Prefs, roomTheme?: string) {
     document.body.classList.toggle('left-handed', p.leftHanded);
     document.body.dataset.cardBack = p.cardBack || 'classic';
     document.body.dataset.chip = p.chipStyle || 'plastic';
+    document.body.dataset.orient = p.boardLayout || 'portrait';
   } catch {
     /* SSR/no-dom */
   }
