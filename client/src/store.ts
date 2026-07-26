@@ -82,6 +82,11 @@ export const BOARD_THEMES = [
   { id: 'midnight', label: 'Midnight' },
   { id: 'crimson', label: 'Crimson' },
   { id: 'ocean', label: 'Ocean' },
+  // showpiece animated themes
+  { id: 'galaxy', label: '🌌 Dark Universe' },
+  { id: 'abyss', label: '🌊 Deep Sea' },
+  { id: 'inferno', label: '🔥 Inferno' },
+  { id: 'aurora', label: '✨ Aurora' },
 ];
 
 export interface Stats {
@@ -237,11 +242,19 @@ function loadStats(): Stats {
   }
 }
 
-/** In an online room the host's board choice wins so everyone sees the same
- * table; otherwise each player's own Settings pick applies. */
+/** Board-theme precedence, so both "change mine" and "change for everyone" work:
+ *  - the room's board (host's "for everyone" pick) is the shared default;
+ *  - a player can override it just for themselves ("change mine");
+ *  - but when the host changes the room board again, that re-syncs everyone,
+ *    clearing personal overrides, so "everyone's board changes" really happens.
+ * We detect a host change by the room theme value changing. */
+let boardOverridden = false;
+let lastRoomTheme: string | undefined;
+
 function applyBoardTheme(roomTheme: string | undefined, prefTheme: string) {
   try {
-    document.body.dataset.board = roomTheme || prefTheme || 'classic';
+    const theme = boardOverridden ? prefTheme : roomTheme || prefTheme;
+    document.body.dataset.board = theme || 'classic';
   } catch {
     /* SSR/no-dom */
   }
@@ -563,8 +576,14 @@ export const useStore = create<Store>((set, get) => ({
           room,
           view: room.started && s.game ? 'game' : room.started ? s.view : 'lobby',
         }));
-        // the host picks the board for the whole table
-        applyBoardTheme(room.settings?.boardTheme, get().prefs.boardTheme);
+        // if the host changed the room board ("for everyone"), re-sync every
+        // client, clearing any personal override so it truly applies to all
+        const rt = room.settings?.boardTheme;
+        if (rt !== lastRoomTheme) {
+          lastRoomTheme = rt;
+          boardOverridden = false;
+        }
+        applyBoardTheme(rt, get().prefs.boardTheme);
       },
       onGameState: (g) => {
         if (get().mode !== 'online') return;
@@ -618,6 +637,10 @@ export const useStore = create<Store>((set, get) => ({
 
   _goHome() {
     const s = get();
+    // leaving the table: forget the room board so your own theme applies again
+    boardOverridden = false;
+    lastRoomTheme = undefined;
+    applyBoardTheme(undefined, s.prefs.boardTheme);
     if (s.net) {
       try {
         s.net.destroy();
@@ -657,6 +680,9 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   setPref(key, value) {
+    // changing your own board theme is a personal override that beats the room's
+    // shared board, until the host next changes the board for everyone
+    if (key === 'boardTheme') boardOverridden = true;
     const prefs = { ...get().prefs, [key]: value };
     LS.set('seq:prefs', JSON.stringify(prefs));
     applyPrefs(prefs, get().room?.settings?.boardTheme);

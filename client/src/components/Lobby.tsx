@@ -148,6 +148,7 @@ export default function Lobby() {
 
         {isHost && (
           <div className="lobby-controls">
+            <div className="lobby-section-title">Players &amp; bots</div>
             <motion.button
               className="btn btn-secondary"
               whileTap={{ scale: 0.96 }}
@@ -188,6 +189,21 @@ export default function Lobby() {
               ))}
             </div>
 
+            <div className="lobby-section-title">Board</div>
+            <div className="seg seg-wrap">
+              <span className="seg-label">Board</span>
+              {BOARD_THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  className={`seg-btn ${(room.settings.boardTheme ?? 'classic') === t.id ? 'on' : ''}`}
+                  onClick={() => updateSettings({ boardTheme: t.id })}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="lobby-section-title">Rules</div>
             <div className="seg">
               <span className="seg-label">Turn timer</span>
               {[
@@ -225,19 +241,6 @@ export default function Lobby() {
               <i className="seg-note">
                 Only the move you just made, and only until the next player moves.
               </i>
-            </div>
-
-            <div className="seg seg-wrap">
-              <span className="seg-label">Board for everyone</span>
-              {BOARD_THEMES.map((t) => (
-                <button
-                  key={t.id}
-                  className={`seg-btn ${(room.settings.boardTheme ?? 'classic') === t.id ? 'on' : ''}`}
-                  onClick={() => updateSettings({ boardTheme: t.id })}
-                >
-                  {t.label}
-                </button>
-              ))}
             </div>
 
             {room.settings.teamCount === 2 && (

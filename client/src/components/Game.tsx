@@ -214,7 +214,27 @@ export default function Game() {
           <button className="btn-icon" title="Sound" onClick={toggleMute}>
             {muted ? '🔇' : '🔊'}
           </button>
-          <button className="btn btn-ghost btn-sm gh-leave" onClick={leaveRoom}>
+          <button
+            className="btn btn-ghost btn-sm gh-leave"
+            onClick={() => {
+              // warn a host with other humans present: leaving hands the game over
+              const iAmHost = mode === 'online' && room?.hostId === game.yourId;
+              const otherHumans = game.players.filter(
+                (p) => !p.isBot && p.id !== game.yourId,
+              ).length;
+              if (
+                iAmHost &&
+                otherHumans > 0 &&
+                !game.winner &&
+                !game.stalemate &&
+                !window.confirm(
+                  "You're the host. Leaving hands the game to the next player. Leave anyway?",
+                )
+              )
+                return;
+              leaveRoom();
+            }}
+          >
             Leave
           </button>
         </div>

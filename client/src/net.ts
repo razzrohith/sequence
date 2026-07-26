@@ -803,10 +803,20 @@ export class NetHost {
 
   destroy() {
     this.clearTimers();
-    // if a human can take over, hand the room off (heir promotes); otherwise close it
     const heir = this.heirId();
-    this.sendSnapshotToHeir();
-    this.pub('b', heir ? { t: 'hostgone' } : { t: 'closed', reason: 'The host left.' });
+    if (heir) {
+      // Deliberate leave. Send the snapshot then the hostleft on the heir's OWN
+      // topic, in that order (same publisher + topic = ordered), so the heir
+      // always has the state before it is told to take over, no snapshot race.
+      // Tell everyone else a handoff is happening so they show a status, not a
+      // frozen board, and don't declare the room dead.
+      this.sendSnapshotToHeir();
+      this.toPlayer(heir, { t: 'hostleft' });
+      this.pub('b', { t: 'hostmigrating' });
+    } else {
+      // no human left to take over: close the room
+      this.pub('b', { t: 'closed', reason: 'The host left.' });
+    }
     setTimeout(() => {
       try {
         this.client.end(true);
@@ -933,47 +943,73 @@ export class NetGuest {
     else if (t === 'err') this.h.onError(String(msg.m ?? 'Error'));
     else if (t === 'kicked') this.h.onKicked();
     else if (t === 'full') this.lastFull = msg.snap as HostSnapshot; // I'm the heir
-    else if (t === 'hostgone') this.handleHostGone();
+    else if (t === 'hostgone') this.handleHostGone(false);
+    // a deliberate Leave: the host is gone for good, so take over immediately
+    else if (t === 'hostleft') this.handleHostGone(true);
+    // someone else is the heir and is taking over: show a status, don't close
+    else if (t === 'hostmigrating') this.h.onNotice('The host left. A new host is taking over…');
     else if (t === 'closed') this.h.onClosed(String(msg.reason ?? 'The room closed.'));
     else if (t === 'notice') this.h.onNotice(String(msg.m ?? ''));
   }
 
   /** Host left: if I'm the designated heir (and hold a snapshot), take over as
-   * the new host on the same room code; otherwise wait for the new host. */
-  private handleHostGone() {
+   * the new host on the same room code; otherwise wait for the new host.
+   * `immediate` is true for a deliberate Leave (no need to wait and see if the
+   * host reconnects, it isn't coming back). */
+  private handleHostGone(immediate: boolean) {
     if (this.migrating) return;
     this.migrating = true;
     const room = this.lastRoom;
     const heir = room?.players.find((p) => !p.isBot && p.connected && p.id !== room.hostId);
-    if (heir && heir.id === this.playerId && this.lastFull) {
-      // I'm the heir. The broker also publishes this will on a TRANSIENT host
-      // drop (wifi blip, laptop sleep, clientId session takeover), the host
-      // auto-reconnects and re-announces. Promoting immediately would leave two
-      // authoritative engines on one room code, so wait and see if it speaks again.
+    const amHeir = !!heir && heir.id === this.playerId;
+
+    const promote = (): boolean => {
+      if (!this.lastFull) return false;
+      try {
+        this.client.end(true);
+      } catch {
+        /* ignore */
+      }
+      this.h.onBecomeHost(this.code, this.lastFull);
+      return true;
+    };
+
+    if (amHeir) {
+      if (immediate) {
+        // deliberate Leave: take over now. The snapshot was published on our
+        // private topic right before the hostleft, so it is normally already
+        // here; allow one short beat in case the two messages raced.
+        if (promote()) return;
+        this.later(() => {
+          if (!promote())
+            this.h.onClosed('The host left and the game could not be handed over.');
+        }, 1200);
+        return;
+      }
+      // accidental drop: the same signal fires on a wifi blip / laptop sleep,
+      // where the host auto-reconnects. Wait and see if it speaks again before
+      // promoting, or two engines would run on one room code.
       const seqAtGone = this.hostMsgSeq;
       this.later(() => {
         if (this.hostMsgSeq !== seqAtGone) {
           this.migrating = false; // the host came back, it never really left
           return;
         }
-        try {
-          this.client.end(true);
-        } catch {
-          /* ignore */
-        }
-        this.h.onBecomeHost(this.code, this.lastFull!);
+        if (!promote()) this.h.onClosed('The room closed.');
       }, HOST_GONE_GRACE_MS);
       return;
     }
-    // not the heir (or no snapshot): the heir should promote and re-broadcast.
-    // If nothing arrives soon, the room is gone.
+    // not the heir: the heir should promote and re-broadcast. If new state
+    // doesn't arrive, the room really is gone. A deliberate leave hands over in
+    // about a second, so wait far less than for an accidental drop.
     const roomAtGone = this.lastRoom;
-    // must outlast the heir's grace period plus its takeover, or we'd declare the
-    // room dead while a new host is still coming up
-    this.later(() => {
-      if (this.lastRoom === roomAtGone) this.h.onClosed('The room closed.');
-      else this.migrating = false; // a new host took over; carry on
-    }, HOST_GONE_GRACE_MS + 9000);
+    this.later(
+      () => {
+        if (this.lastRoom === roomAtGone) this.h.onClosed('The room closed.');
+        else this.migrating = false; // a new host took over; carry on
+      },
+      immediate ? 8000 : HOST_GONE_GRACE_MS + 9000,
+    );
   }
 
   /** tell the table this player just took a hint */
