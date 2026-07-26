@@ -71,7 +71,11 @@ export default function Hand() {
     !game.deadExchangedThisTurn &&
     deadCount > 0;
   // exchanging a dead card is optional, offer it, but never block the pass
-  const canExchange = noLegalMoves && !game.deadExchangedThisTurn && deadCount > 0;
+  const canExchange =
+    noLegalMoves &&
+    game.settings.allowDeadExchange !== false &&
+    !game.deadExchangedThisTurn &&
+    deadCount > 0;
 
   const onDeckClick = () => {
     if (game.settings.strictDraw && game.yourPendingDraws > 0) {
@@ -169,7 +173,12 @@ export default function Hand() {
               >
                 <CardFace card={card} />
                 {dead && <span className="dead-badge">DEAD</span>}
-                {selected && dead && !isJack(card) && !game.deadExchangedThisTurn && myTurn && (
+                {selected &&
+                  dead &&
+                  !isJack(card) &&
+                  !game.deadExchangedThisTurn &&
+                  game.settings.allowDeadExchange !== false &&
+                  myTurn && (
                   <button
                     className="exchange-btn"
                     onClick={(e) => {

@@ -570,6 +570,22 @@ assert(freshGame(3, 3).required === 1, '3 teams require 1 sequence');
   }
   const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
   assert(mean(power) < mean(plain) - 5, 'power cards: jacks really do come earlier on average');
+
+  // draws must take the FRONT of the deck (the same jack-rich end the deal uses),
+  // not the back, or the power-card bias would reverse for everything drawn
+  {
+    const g = createGame(
+      [0, 1].map((n) => ({ id: `p${n}`, name: `P${n}`, isBot: true, team: TEAMS[n % 2] })),
+      defaultSettings({ powerCards: true }),
+      mulberry32(77),
+    );
+    const nextUp = g.deck[0];
+    const face = '2S';
+    setChips(g, 'blue', positionsFor(g.layout).get(face)!); // make 2S dead
+    giveHand(g, 0, [face]);
+    applyMove(g, 'p0', { type: 'exchangeDead', card: face });
+    assert(g.players[0].hand[0] === nextUp, 'power cards: a draw takes the front (early) card');
+  }
 }
 
 // swap all dead cards at once: hand size and card totals are preserved

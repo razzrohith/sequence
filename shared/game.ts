@@ -242,7 +242,11 @@ function drawCard(game: GameCore, player: ServerPlayer): Card | null {
     game.deck = shuffle(game.discard, game.rng ?? Math.random);
     game.discard = [];
   }
-  const card = game.deck.pop() ?? null;
+  // Draw from the FRONT, the same end the opening deal takes from. With a uniform
+  // shuffle this is identical to popping the back; it matters only for power-card
+  // games, where jacks are front-loaded, so both the deal and early draws must
+  // read the front or the bias would reverse for draws.
+  const card = game.deck.shift() ?? null;
   if (card) player.hand.push(card);
   return card;
 }
