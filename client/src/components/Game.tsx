@@ -29,10 +29,13 @@ function MobileBar({
   const sendEmote = useStore((s) => s.sendEmote);
   const requestUndo = useStore((s) => s.requestUndo);
   const requestHint = useStore((s) => s.requestHint);
+  // hard level always hides the hint so you work each move out yourself
+  const hard = useStore((s) => s.prefs.gameLevel === 'hard');
   const [emoteOpen, setEmoteOpen] = useState(false);
 
   // hints can be switched off for the room in the lobby
   const canHint =
+    !hard &&
     !spectating &&
     !over &&
     !!game &&

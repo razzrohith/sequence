@@ -49,6 +49,9 @@ export default function Board() {
   const hint = useStore((s) => s.hint);
   const previewCard = useStore((s) => s.previewCard);
   const confirmPlace = useStore((s) => s.prefs.confirmPlace);
+  // hard level: the board reveals nothing, you find each card's space yourself
+  const hard = useStore((s) => s.prefs.gameLevel === 'hard');
+  const toast = useStore((s) => s.toast);
   // with 'confirm before placing' on, the first tap arms a cell, the second commits
   const [armed, setArmed] = useState<string | null>(null);
   // an armed cell belongs to one card on one turn; forget it the moment either
@@ -104,7 +107,15 @@ export default function Board() {
 
   const onCellClick = (r: number, c: number) => {
     const key = `${r},${c}`;
-    if (!selectedCard || !legal.has(key)) return;
+    if (!selectedCard) return;
+    if (!legal.has(key)) {
+      // in hard level nothing is highlighted, so a wrong tap earns a nudge
+      // rather than the usual silent no-op you'd get from an un-highlighted cell
+      if (hard && !isCorner(r, c)) {
+        toast(removing ? 'No chip to remove there.' : 'That card has no space there.', 'error');
+      }
+      return;
+    }
     if (confirmPlace && armed !== key) {
       setArmed(key); // first tap only arms the cell
       return;
@@ -178,7 +189,8 @@ export default function Board() {
                 className={[
                   'cell',
                   corner ? 'corner' : '',
-                  isLegal ? (removing ? 'legal-remove' : 'legal') : '',
+                  // hard hides the highlight, so the space gives no hint away
+                  isLegal && !hard ? (removing ? 'legal-remove' : 'legal') : '',
                   seqTeam ? `in-seq seq-${seqTeam}` : '',
                   sweep >= 0 ? 'seq-flash' : '',
                   armed === `${r},${c}` ? 'armed' : '',
@@ -188,10 +200,12 @@ export default function Board() {
                 // keyboard play: only legal cells take focus, so Tab walks the
                 // moves available for the selected card
                 role={corner ? undefined : 'button'}
-                tabIndex={isLegal ? 0 : -1}
-                aria-disabled={corner ? undefined : !isLegal}
+                // hard: every space is reachable by Tab so focus order never
+                // betrays which cells are legal; normal: only legal cells focus
+                tabIndex={hard ? (corner ? -1 : 0) : isLegal ? 0 : -1}
+                aria-disabled={corner ? undefined : hard ? undefined : !isLegal}
                 aria-label={
-                  corner ? 'Free corner space' : cellLabel(code, cell.chip, isLegal, removing)
+                  corner ? 'Free corner space' : cellLabel(code, cell.chip, isLegal && !hard, removing)
                 }
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -227,7 +241,9 @@ export default function Board() {
                 </AnimatePresence>
 
                 {isLast && <div className="last-ring" />}
-                {hint && hint.turn === game.turn && hint.r === r && hint.c === c && (
+                {/* hard hides hints; also drops any marker left over from before
+                    the player switched into hard mid-game */}
+                {!hard && hint && hint.turn === game.turn && hint.r === r && hint.c === c && (
                   <div className="hint-mark">✦</div>
                 )}
               </div>

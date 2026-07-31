@@ -2855,7 +2855,10 @@ body.colorblind .chip-star {
     padding: calc(var(--board-size) * 0.03);
     align-self: center;
   }
-  .bf-word {
+  /* the frame is thin on phones, so its decorative text would sit on top of the
+     outer row/column of cards; hide it for a clean, aligned board */
+  .bf-word,
+  .bf-oval {
     display: none;
   }
 

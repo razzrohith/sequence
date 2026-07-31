@@ -227,6 +227,30 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
         <Section title="Gameplay">
           <div className="setting-group">
+            <span className="setting-label">Game level</span>
+            <div className="seg">
+              {(
+                [
+                  ['normal', 'Normal'],
+                  ['hard', 'Hard'],
+                ] as const
+              ).map(([v, lbl]) => (
+                <button
+                  key={v}
+                  className={`seg-btn ${(prefs.gameLevel ?? 'normal') === v ? 'on' : ''}`}
+                  onClick={() => setPref('gameLevel', v)}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+            <i className="setting-note">
+              Hard hides the highlighted spaces and the hint, so you read each card and find its
+              own space on the board yourself.
+            </i>
+          </div>
+
+          <div className="setting-group">
             <span className="setting-label">Keep my hand sorted</span>
             <div className="seg">
               {(

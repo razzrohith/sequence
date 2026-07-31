@@ -31,6 +31,9 @@ export default function Hand() {
   const selectCard = useStore((s) => s.selectCard);
   const playMove = useStore((s) => s.playMove);
   const sortMode = useStore((s) => s.prefs.sortHand);
+  // hard level never tells you when you're stuck, so it shows a plain Pass you
+  // may try any turn (the engine still refuses it while you have a move)
+  const hard = useStore((s) => s.prefs.gameLevel === 'hard');
   const previewCardSet = useStore((s) => s.previewCardSet);
   // press and hold a card to light up its spaces without committing to it
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -217,14 +220,28 @@ export default function Hand() {
             )}
           </div>
         )}
-        {noLegalMoves && (
-          <div className="stuck-actions">
-            {canExchange && <span className="exchange-hint">Tap a dead card to exchange ↻</span>}
-            <button className="btn btn-secondary" onClick={() => playMove({ type: 'pass' })}>
-              No moves, pass
-            </button>
-          </div>
-        )}
+        {hard
+          ? myTurn && (
+              <div className="stuck-actions">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => playMove({ type: 'pass' })}
+                  title="Only goes through when you truly have no move"
+                >
+                  Pass
+                </button>
+              </div>
+            )
+          : noLegalMoves && (
+              <div className="stuck-actions">
+                {canExchange && (
+                  <span className="exchange-hint">Tap a dead card to exchange ↻</span>
+                )}
+                <button className="btn btn-secondary" onClick={() => playMove({ type: 'pass' })}>
+                  No moves, pass
+                </button>
+              </div>
+            )}
       </div>
     </div>
   );

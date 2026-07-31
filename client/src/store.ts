@@ -52,6 +52,9 @@ export interface Prefs {
   chipStyle: string;
   /** board shape: tall (portrait, default) or wide (rotated for wide screens) */
   boardLayout: 'portrait' | 'landscape';
+  /** challenge level: 'normal' shows legal spaces and lets you use hints;
+   * 'hard' highlights nothing and hides the hint, you find the space yourself */
+  gameLevel: 'normal' | 'hard';
   haptics: boolean;
   colorblind: boolean;
   reducedMotion: boolean;
@@ -178,6 +181,7 @@ function loadPrefs(): Prefs {
     cardBack: saved.cardBack ?? 'classic',
     chipStyle: saved.chipStyle ?? 'plastic',
     boardLayout: saved.boardLayout ?? 'portrait',
+    gameLevel: saved.gameLevel ?? 'normal',
     haptics: saved.haptics ?? true,
     colorblind: saved.colorblind ?? false,
     reducedMotion: saved.reducedMotion ?? prefersReducedMotion(),

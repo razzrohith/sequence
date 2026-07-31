@@ -117,11 +117,14 @@ export function UndoControls() {
   const respondUndo = useStore((s) => s.respondUndo);
   const requestHint = useStore((s) => s.requestHint);
   const spectating = useStore((s) => s.spectating);
+  // hard level always hides the hint so you work each move out yourself
+  const hard = useStore((s) => s.prefs.gameLevel === 'hard');
   if (!game || spectating) return null;
 
   const req = game.undoRequest;
   // hints can be switched off for the room in the lobby
   const canHint =
+    !hard &&
     game.settings.hints === true &&
     !game.winner &&
     !game.stalemate &&
