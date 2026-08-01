@@ -44,6 +44,16 @@ export default function Lobby() {
       toast(link, 'info');
     }
   };
+  // a watch link drops friends straight into spectator mode for this room
+  const copyWatchLink = async () => {
+    const link = `${window.location.origin}${window.location.pathname}?r=${room.code}&w=1`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast('Watch link copied! Anyone with it can spectate.');
+    } catch {
+      toast(link, 'info');
+    }
+  };
   // copying the bare code avoids anyone having to read it off the screen
   const copyCode = async () => {
     try {
@@ -75,6 +85,9 @@ export default function Lobby() {
           <div className="rc-actions">
             <button className="rc-btn" onClick={copyLink}>
               ⧉ Copy invite link
+            </button>
+            <button className="rc-btn" onClick={copyWatchLink}>
+              👁 Copy watch link
             </button>
             <button className="rc-btn" onClick={copyCode}>
               ⧉ Copy code

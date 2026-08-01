@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 
+// one-tap table talk, so you can chat without a keyboard mid-game
+const QUICK_PHRASES = ['Nice move!', 'Good game', 'So close!', 'Your turn', 'Oops', 'Watch this 😏'];
+
 export default function Chat() {
   const chat = useStore((s) => s.chat);
   const sendChat = useStore((s) => s.sendChat);
@@ -28,6 +31,13 @@ export default function Chat() {
             <span className={`chat-name ${m.team ?? ''}`}>{m.name}</span>
             <span className="chat-text">{m.text}</span>
           </div>
+        ))}
+      </div>
+      <div className="quick-phrases">
+        {QUICK_PHRASES.map((p) => (
+          <button key={p} className="quick-phrase" onClick={() => sendChat(p)}>
+            {p}
+          </button>
         ))}
       </div>
       <div className="chat-input-row">

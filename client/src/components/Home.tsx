@@ -28,7 +28,7 @@ export default function Home() {
   const [showRules, setShowRules] = useState(false);
   const [showLocal, setShowLocal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [watchMode, setWatchMode] = useState(false);
+  const [watchMode, setWatchMode] = useState(() => useStore.getState().pendingWatch);
   const [seedInput, setSeedInput] = useState('');
   const [showSeed, setShowSeed] = useState(false);
 

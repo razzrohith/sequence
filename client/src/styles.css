@@ -3826,3 +3826,25 @@ body[data-board='aurora'] .bf-oval {
   gap: 6px;
   font-size: 1.4rem;
 }
+
+/* ---- Quick-chat phrases (Wave E) ---- */
+.quick-phrases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 6px 0;
+}
+.quick-phrase {
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.quick-phrase:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--gold);
+}

@@ -341,20 +341,24 @@ function applyPrefs(p: Prefs, roomTheme?: string) {
 /** A shared invite link (…/?r=CODE) prefills the join field. Read at module load
  * so it's available before the first render, then stripped from the URL so a
  * refresh doesn't re-trigger it. */
-function readInvite(): string | null {
+function readInvite(): { code: string | null; watch: boolean } {
   try {
     const params = new URLSearchParams(window.location.search);
     const raw = (params.get('r') ?? '').trim().toUpperCase();
-    if (!/^[A-Z0-9]{5}$/.test(raw)) return null;
+    // a spectator link carries &w=1, so the join field defaults to watch mode
+    const watch = params.get('w') === '1';
+    if (!/^[A-Z0-9]{5}$/.test(raw)) return { code: null, watch: false };
     params.delete('r');
+    params.delete('w');
     const qs = params.toString();
     window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
-    return raw;
+    return { code: raw, watch };
   } catch {
-    return null;
+    return { code: null, watch: false };
   }
 }
-const INVITE_CODE = readInvite();
+const INVITE = readInvite();
+const INVITE_CODE = INVITE.code;
 
 function getPlayerId(): string {
   let id = LS.get('seq:playerId');
@@ -386,6 +390,8 @@ interface Store {
   hint: { card: Card; r: number; c: number; turn: number } | null;
   /** room code from an invite link, used to prefill the join field */
   pendingInvite: string | null;
+  /** an invite link asked to watch (spectate) rather than join */
+  pendingWatch: boolean;
   rejoining: boolean;
   lastEventSeen: number;
   wasMyTurn: boolean;
@@ -508,6 +514,7 @@ export const useStore = create<Store>((set, get) => ({
   previewCard: null,
   hint: null,
   pendingInvite: INVITE_CODE,
+  pendingWatch: INVITE.watch,
   rejoining: false,
   lastEventSeen: 0,
   wasMyTurn: false,
