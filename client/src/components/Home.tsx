@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { dailySeed } from '../../../shared/rng';
-import { useStore } from '../store';
+import { levelForXp, useStore, xpForStats } from '../store';
 import LocalSetup from './LocalSetup';
+import Progress from './Progress';
 import Rules from './Rules';
 import Settings from './Settings';
 
@@ -22,13 +23,16 @@ export default function Home() {
   const serverProbed = useStore((s) => s.serverProbed);
   const prefs = useStore((s) => s.prefs);
   const stats = useStore((s) => s.stats);
+  const achievements = useStore((s) => s.achievements);
   // an invite link (…/?r=CODE) lands you here with the code already filled in
   const [code, setCode] = useState(() => useStore.getState().pendingInvite ?? '');
   const [joinPw, setJoinPw] = useState('');
   const [showRules, setShowRules] = useState(false);
   const [showLocal, setShowLocal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
   const [watchMode, setWatchMode] = useState(() => useStore.getState().pendingWatch);
+  const level = levelForXp(xpForStats(stats, achievements)).level;
   const [seedInput, setSeedInput] = useState('');
   const [showSeed, setShowSeed] = useState(false);
 
@@ -78,9 +82,12 @@ export default function Home() {
           </label>
         </div>
         {stats.games > 0 && (
-          <div className="stats-line">
-            🏆 {stats.wins}W · {stats.losses}L · {stats.games} games · {winRate}% win rate
-          </div>
+          <button className="stats-line" onClick={() => setShowProgress(true)}>
+            <span className="stats-level">LVL {level}</span>
+            🏆 {stats.wins}W · {stats.losses}L · {winRate}% ·{' '}
+            {stats.streak > 0 ? `🔥 ${stats.streak} streak` : `${stats.games} games`}
+            <span className="stats-more">View progress ›</span>
+          </button>
         )}
 
         {savedLocal && (
@@ -248,6 +255,7 @@ export default function Home() {
       {showRules && <Rules onClose={() => setShowRules(false)} />}
       {showLocal && <LocalSetup onClose={() => setShowLocal(false)} />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showProgress && <Progress onClose={() => setShowProgress(false)} />}
     </div>
   );
 }

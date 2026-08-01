@@ -108,6 +108,51 @@ export interface Stats {
   wins: number;
   losses: number;
   games: number;
+  /** current win streak */
+  streak: number;
+  /** best win streak ever */
+  bestStreak: number;
+}
+
+/** An unlockable achievement. `test` runs at game-over with the finished game,
+ * the (already updated) stats, and some context, and returns true when earned. */
+export interface Achievement {
+  id: string;
+  label: string;
+  desc: string;
+  emoji: string;
+}
+
+export const ACHIEVEMENTS: Achievement[] = [
+  { id: 'first_win', label: 'First Blood', desc: 'Win your first game', emoji: '🩸' },
+  { id: 'streak_3', label: 'On a Roll', desc: 'Win 3 games in a row', emoji: '🔥' },
+  { id: 'streak_5', label: 'Unstoppable', desc: 'Win 5 games in a row', emoji: '⚡' },
+  { id: 'shutout', label: 'Shutout', desc: 'Win without the other team scoring a sequence', emoji: '🧱' },
+  { id: 'double', label: 'Double Up', desc: 'Win a game with 2 sequences', emoji: '✌️' },
+  { id: 'hard_win', label: 'Giant Slayer', desc: 'Beat a Hard bot', emoji: '🗡️' },
+  { id: 'daily_win', label: 'Daily Grind', desc: 'Win a daily challenge', emoji: '🎯' },
+  { id: 'blitz_win', label: 'Speed Demon', desc: 'Win a Blitz game', emoji: '💨' },
+  { id: 'marathon_win', label: 'Marathoner', desc: 'Win a Marathon (3 sequences)', emoji: '🏔️' },
+  { id: 'series_win', label: 'Champion', desc: 'Win a best-of match', emoji: '🏆' },
+  { id: 'games_10', label: 'Regular', desc: 'Play 10 games', emoji: '🎲' },
+  { id: 'veteran', label: 'Veteran', desc: 'Win 25 games', emoji: '🎖️' },
+];
+
+/** XP and level from lifetime progress. Levels get gently harder to reach. */
+export function xpForStats(stats: Stats, achievements: string[]): number {
+  return stats.wins * 10 + stats.games * 2 + achievements.length * 20;
+}
+export function levelForXp(xp: number): { level: number; into: number; span: number } {
+  // each level N needs 50*N more xp than the last (cumulative quadratic-ish)
+  let level = 1;
+  let need = 50;
+  let acc = 0;
+  while (xp >= acc + need) {
+    acc += need;
+    level++;
+    need = 50 * level;
+  }
+  return { level, into: xp - acc, span: need };
 }
 
 export interface FloatingEmote {
@@ -262,9 +307,24 @@ function loadLocalGame(): SavedLocal | null {
 function loadStats(): Stats {
   try {
     const s = JSON.parse(LS.get('seq:stats') ?? '{}');
-    return { wins: s.wins ?? 0, losses: s.losses ?? 0, games: s.games ?? 0 };
+    return {
+      wins: s.wins ?? 0,
+      losses: s.losses ?? 0,
+      games: s.games ?? 0,
+      streak: s.streak ?? 0,
+      bestStreak: s.bestStreak ?? 0,
+    };
   } catch {
-    return { wins: 0, losses: 0, games: 0 };
+    return { wins: 0, losses: 0, games: 0, streak: 0, bestStreak: 0 };
+  }
+}
+
+function loadAchievements(): string[] {
+  try {
+    const a = JSON.parse(LS.get('seq:achievements') ?? '[]');
+    return Array.isArray(a) ? a : [];
+  } catch {
+    return [];
   }
 }
 
@@ -400,6 +460,8 @@ interface Store {
   /** the board theme actually on screen right now (room default, or your override) */
   boardView: string;
   stats: Stats;
+  /** unlocked achievement ids */
+  achievements: string[];
   /** your result on today's daily challenge, or null if not played today */
   dailyResult: DailyResult | null;
   emotes: FloatingEmote[];
@@ -522,6 +584,7 @@ export const useStore = create<Store>((set, get) => ({
   prefs: initialPrefs,
   boardView: initialPrefs.boardTheme,
   stats: loadStats(),
+  achievements: loadAchievements(),
   dailyResult: loadDaily(),
   seriesTarget: 1,
   seriesWins: { red: 0, blue: 0, green: 0 },
@@ -623,16 +686,53 @@ export const useStore = create<Store>((set, get) => ({
       // neither). Pass & Play on one device is excluded: the "viewer" is always
       // whoever just moved, so every finished game would score as a win.
       const sharedDevice = s.mode === 'local' && s.localSeats.filter((x) => !x.isBot).length > 1;
+      const won = game.winner === myTeam;
       if (!game.spectator && myTeam && !sharedDevice) {
-        const won = game.winner === myTeam;
         const st = get().stats;
         const stats: Stats = {
           games: st.games + 1,
           wins: st.wins + (won ? 1 : 0),
           losses: st.losses + (game.winner && !won ? 1 : 0),
+          streak: won ? st.streak + 1 : 0,
+          bestStreak: Math.max(st.bestStreak, won ? st.streak + 1 : 0),
         };
         LS.set('seq:stats', JSON.stringify(stats));
         set({ stats });
+
+        // evaluate achievements against this finished game
+        const isDaily = s.mode === 'local' && s.localSeed === dailySeed();
+        const seriesDecided =
+          s.mode === 'local' && s.seriesTarget > 1 && (s.seriesWins[myTeam] ?? 0) + 1 >= s.seriesTarget;
+        const oppSeqs = game.sequences.filter((q) => q.team !== myTeam).length;
+        const mySeqs = game.sequences.filter((q) => q.team === myTeam).length;
+        const vsHardBot =
+          s.mode === 'local' &&
+          game.settings.botDifficulty === 'hard' &&
+          game.players.some((p) => p.isBot);
+        const ts = game.settings.turnSeconds ?? 0;
+        const winReq = game.settings.winSequences ?? 0;
+        const earned: Record<string, boolean> = {
+          first_win: won,
+          streak_3: stats.streak >= 3,
+          streak_5: stats.streak >= 5,
+          shutout: won && oppSeqs === 0,
+          double: won && mySeqs >= 2,
+          hard_win: won && vsHardBot,
+          daily_win: won && isDaily,
+          blitz_win: won && ts > 0 && ts <= 20,
+          marathon_win: won && winReq >= 3,
+          series_win: won && seriesDecided,
+          games_10: stats.games >= 10,
+          veteran: stats.wins >= 25,
+        };
+        const have = get().achievements;
+        const fresh = ACHIEVEMENTS.filter((a) => earned[a.id] && !have.includes(a.id));
+        if (fresh.length) {
+          const next = [...have, ...fresh.map((a) => a.id)];
+          LS.set('seq:achievements', JSON.stringify(next));
+          set({ achievements: next });
+          fresh.forEach((a) => get().toast(`🏆 Unlocked: ${a.emoji} ${a.label}`, 'gold'));
+        }
       }
       // if this was today's daily challenge, record the result for Home to show
       if (s.mode === 'local' && s.localSeed && s.localSeed === dailySeed() && myTeam) {
