@@ -45,6 +45,7 @@ class Client {
   lastError: string | null = null;
   drewFor = -1;
   code: string | null = null;
+  token: string | null = null;
   emotes: EmoteMessage[] = [];
   spectating = false;
 
@@ -53,7 +54,12 @@ class Client {
     this.playerId = playerId;
     this.socket = io(URL, { transports: ['websocket'], forceNew: true });
     this.socket.on('roomUpdate', (r: RoomInfo) => (this.room = r));
-    this.socket.on('roomJoined', (d: { code: string }) => (this.code = d.code));
+    this.socket.on('roomJoined', (d: { code: string; token?: string }) => {
+      this.code = d.code;
+      // capture the reconnect secret at the source: roomJoined fires the instant
+      // create()/join() lands, before a scenario could attach its own listener
+      if (d.token) this.token = d.token;
+    });
     this.socket.on('spectating', (d: { code: string }) => {
       this.code = d.code;
       this.spectating = true;
@@ -230,10 +236,18 @@ async function driveToEnd(ref: Client, byId: Record<string, Client>, tag: string
     guard++;
   }
   check(over(), `${tag}: game reached an outcome (${guard} steps)`);
-  if (ref.gs?.winner) {
-    const seqs = ref.gs.sequences.filter((s) => s.team === ref.gs!.winner).length;
-    check(seqs >= ref.gs.required, `${tag}: winner has >= required sequences`);
-  }
+  // The outcome must be internally consistent whether the game ended in a win or
+  // a stalemate. Assert exactly one condition either way, so the assertion count
+  // stays deterministic run to run (a win vs. a locked/tied board no longer
+  // changes how many checks fire) and stalemate endings get covered too.
+  const w = ref.gs?.winner;
+  const outcomeOk = w
+    ? ref.gs!.sequences.filter((s) => s.team === w).length >= ref.gs!.required
+    : !!ref.gs?.stalemate;
+  check(
+    outcomeOk,
+    `${tag}: outcome consistent (${w ? 'winner has required sequences' : 'stalemate'})`,
+  );
 }
 
 // ---------- scenarios ----------
@@ -467,12 +481,13 @@ async function scenarioLobbyRefresh() {
   await waitFor(() => !!host.room, 3000);
   const code = host.room!.code;
   const savedId = host.playerId;
-  // capture the token the server issued
-  let token = '';
-  host.socket.on('roomJoined', (d: { token?: string }) => (token = d.token ?? token));
+  // the reconnect token the server issued (captured by the Client on roomJoined)
+  const token = host.token ?? '';
+  check(!!token, `${tag}: host received a reconnect token`);
   await sleep(150);
 
-  // simulate a browser refresh: drop the socket, then rejoin within the grace window
+  // simulate a browser refresh: drop the socket, then rejoin within the grace
+  // window, presenting the saved token so the server authenticates the reclaim
   host.kill();
   await sleep(500);
   const back = new Client('RefHost', savedId);
