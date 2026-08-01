@@ -1875,6 +1875,12 @@ body.high-contrast .cf-mid-rank {
 .theme-opt[data-board='ocean'] .theme-swatch {
   background: linear-gradient(165deg, #1f6f8f, #0f3d50);
 }
+.theme-opt[data-board='sakura'] .theme-swatch {
+  background: linear-gradient(165deg, #7a3a52, #2a1430);
+}
+.theme-opt[data-board='neon'] .theme-swatch {
+  background: linear-gradient(165deg, #ff3cbe, #140a35 60%, #3cdcff);
+}
 .avatar-opt {
   aspect-ratio: 1;
   border-radius: 12px;
@@ -3336,7 +3342,9 @@ body.left-handed .mobile-bar > * {
 body[data-board='galaxy'] .game-main,
 body[data-board='abyss'] .game-main,
 body[data-board='inferno'] .game-main,
-body[data-board='aurora'] .game-main {
+body[data-board='aurora'] .game-main,
+body[data-board='sakura'] .game-main,
+body[data-board='neon'] .game-main {
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -3541,17 +3549,132 @@ body[data-board='aurora'] .board-frame {
   backdrop-filter: blur(6px);
 }
 
-/* wordmarks and rule ovals read light on all four */
+/* wordmarks and rule ovals read light on all animated themes */
 body[data-board='galaxy'] .bf-word,
 body[data-board='abyss'] .bf-word,
 body[data-board='inferno'] .bf-word,
 body[data-board='aurora'] .bf-word,
+body[data-board='sakura'] .bf-word,
+body[data-board='neon'] .bf-word,
 body[data-board='galaxy'] .bf-oval,
 body[data-board='abyss'] .bf-oval,
 body[data-board='inferno'] .bf-oval,
-body[data-board='aurora'] .bf-oval {
+body[data-board='aurora'] .bf-oval,
+body[data-board='sakura'] .bf-oval,
+body[data-board='neon'] .bf-oval {
   color: var(--frame-ink);
   border-color: var(--frame-ink);
+}
+
+/* ---------- 🌸 Sakura : twilight sky with drifting cherry petals ---------- */
+body[data-board='sakura'] {
+  --frame-ink: rgba(255, 236, 245, 0.96);
+}
+body[data-board='sakura'] .game-main {
+  background: linear-gradient(180deg, #2a1430 0%, #52243f 55%, #7a3a52 100%);
+}
+/* soft glow of a low sun + distant bloom */
+body[data-board='sakura'] .game-main::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(45% 35% at 78% 18%, rgba(255, 197, 150, 0.28), transparent 70%),
+    radial-gradient(60% 45% at 20% 92%, rgba(255, 150, 190, 0.18), transparent 70%);
+}
+/* two layers of drifting petals */
+body[data-board='sakura'] .game-main::before {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(6px 4px at 10% 12%, rgba(255, 205, 224, 0.9), transparent),
+    radial-gradient(5px 3px at 30% 40%, rgba(255, 183, 210, 0.85), transparent),
+    radial-gradient(7px 5px at 55% 20%, rgba(255, 214, 230, 0.9), transparent),
+    radial-gradient(5px 3px at 72% 55%, rgba(255, 190, 215, 0.8), transparent),
+    radial-gradient(6px 4px at 88% 30%, rgba(255, 205, 224, 0.9), transparent),
+    radial-gradient(5px 3px at 20% 78%, rgba(255, 198, 220, 0.85), transparent),
+    radial-gradient(6px 4px at 46% 88%, rgba(255, 214, 230, 0.9), transparent),
+    radial-gradient(5px 3px at 66% 74%, rgba(255, 190, 215, 0.8), transparent);
+  background-repeat: repeat;
+  background-size: 340px 340px;
+  animation: petals-fall 14s linear infinite;
+}
+body[data-board='sakura'] .board-frame {
+  --frame-bg: linear-gradient(165deg, rgba(70, 30, 55, 0.6) 0%, rgba(40, 18, 40, 0.72) 100%);
+  border: 1px solid rgba(255, 190, 215, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 235, 0.26),
+    0 0 40px rgba(220, 110, 160, 0.35),
+    var(--shadow-lg);
+  backdrop-filter: blur(6px);
+}
+
+/* ---------- ⚡ Neon Grid : synthwave horizon + glowing grid ---------- */
+body[data-board='neon'] {
+  --frame-ink: rgba(226, 240, 255, 0.96);
+}
+body[data-board='neon'] .game-main {
+  background: linear-gradient(180deg, #0a0420 0%, #140a35 60%, #22103f 100%);
+}
+/* magenta/cyan horizon glow */
+body[data-board='neon'] .game-main::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(70% 40% at 50% 100%, rgba(255, 60, 190, 0.28), transparent 70%),
+    radial-gradient(50% 30% at 50% 0%, rgba(60, 220, 255, 0.16), transparent 70%);
+  animation: neon-pulse 6s ease-in-out infinite alternate;
+}
+/* a perspective grid scrolling toward the viewer */
+body[data-board='neon'] .game-main::before {
+  content: '';
+  position: absolute;
+  left: -50%;
+  right: -50%;
+  bottom: -10%;
+  height: 70%;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0, 240, 255, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 40, 200, 0.3) 1px, transparent 1px);
+  background-size: 44px 44px;
+  transform: perspective(320px) rotateX(66deg);
+  transform-origin: center bottom;
+  animation: neon-grid 3.2s linear infinite;
+}
+body[data-board='neon'] .board-frame {
+  --frame-bg: linear-gradient(165deg, rgba(30, 14, 60, 0.62) 0%, rgba(12, 6, 30, 0.74) 100%);
+  border: 1px solid rgba(120, 210, 255, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(190, 230, 255, 0.24),
+    0 0 42px rgba(120, 60, 255, 0.4),
+    var(--shadow-lg);
+  backdrop-filter: blur(6px);
+}
+
+@keyframes petals-fall {
+  to {
+    transform: translate3d(-120px, 340px, 0);
+  }
+}
+@keyframes neon-grid {
+  to {
+    background-position: 0 44px, 0 0;
+  }
+}
+@keyframes neon-pulse {
+  50% {
+    opacity: 0.72;
+  }
 }
 
 @keyframes star-drift {
@@ -3998,4 +4121,12 @@ button.stats-line:hover {
 .ach-desc {
   font-size: 0.72rem;
   opacity: 0.7;
+}
+
+/* MVP callout on the win screen (Wave G) */
+.mvp-line {
+  text-align: center;
+  font-size: 0.9rem;
+  margin: 4px 0 2px;
+  color: var(--gold);
 }

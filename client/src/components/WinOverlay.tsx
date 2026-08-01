@@ -153,6 +153,12 @@ export default function WinOverlay() {
             : 'Nobody could move and the teams were dead level. Rare!'}
         </p>
 
+        {winner && game.lastMove?.kind === 'place' && (game.lastMove.newSequences?.length ?? 0) > 0 && (
+          <p className="mvp-line">
+            🏅 Winning sequence by <b>{game.lastMove.playerName}</b>
+          </p>
+        )}
+
         {seriesActive && (
           <div className="series-panel">
             <div className="series-label">

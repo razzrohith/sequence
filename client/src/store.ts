@@ -102,6 +102,8 @@ export const BOARD_THEMES = [
   { id: 'abyss', label: '🌊 Deep Sea' },
   { id: 'inferno', label: '🔥 Inferno' },
   { id: 'aurora', label: '✨ Aurora' },
+  { id: 'sakura', label: '🌸 Sakura' },
+  { id: 'neon', label: '⚡ Neon Grid' },
 ];
 
 export interface Stats {
