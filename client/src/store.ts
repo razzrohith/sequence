@@ -19,8 +19,17 @@ import type {
   ServerPlayer,
 } from '../../shared/types';
 import { TEAMS } from '../../shared/types';
-import { NetGuest, NetHost, type NetHandlers } from './net';
+import type { NetGuest, NetHost, NetHandlers } from './net';
 import { setHaptics, setMuted, setVolume, sfx } from './sounds';
+
+/** The multiplayer transport pulls in mqtt (~370KB), which solo/local play never
+ * needs. Load net.ts on demand the first time someone hosts, joins, or watches a
+ * room, and cache the module so later calls (e.g. host migration) are instant. */
+let NetMod: typeof import('./net') | null = null;
+async function loadNet(): Promise<typeof import('./net')> {
+  if (!NetMod) NetMod = await import('./net');
+  return NetMod;
+}
 
 export type View = 'home' | 'lobby' | 'game';
 export type Mode = 'online' | 'local';
@@ -629,9 +638,12 @@ export const useStore = create<Store>((set, get) => ({
         get().toast(reason, 'error');
         get()._goHome();
       },
-      onBecomeHost: (code, snap) => {
-        // the host left and we're the heir, take over hosting on the same code
+      onBecomeHost: async (code, snap) => {
+        // the host left and we're the heir, take over hosting on the same code.
+        // net.ts is already loaded here (we're inside a live guest), so this is
+        // an instant cache hit
         const { name, playerId, prefs } = get();
+        const { NetHost } = await loadNet();
         const host = new NetHost(
           playerId,
           name || 'Player',
@@ -704,9 +716,11 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
 
-  createRoom() {
+  async createRoom() {
     const { name, playerId, prefs } = get();
     get()._goHome();
+    get().toast('Setting up your room…');
+    const { NetHost } = await loadNet();
     const host = new NetHost(playerId, name || 'Player', prefs.avatar, get().netHandlers());
     set({ net: host, netKind: 'host', mode: 'online', chat: [], lastEventSeen: 0, wasMyTurn: false });
   },
@@ -721,9 +735,11 @@ export const useStore = create<Store>((set, get) => ({
     get().startLocal(seats);
   },
 
-  joinRoom(code, password) {
+  async joinRoom(code, password) {
     const { name, playerId, prefs } = get();
     get()._goHome();
+    get().toast('Connecting to room…');
+    const { NetGuest } = await loadNet();
     const guest = new NetGuest(
       code.trim().toUpperCase(),
       playerId,
@@ -734,12 +750,13 @@ export const useStore = create<Store>((set, get) => ({
       password ?? '',
     );
     set({ net: guest, netKind: 'guest', mode: 'online', chat: [], lastEventSeen: 0, wasMyTurn: false });
-    get().toast('Connecting to room…');
   },
 
-  spectate(code, password) {
+  async spectate(code, password) {
     const { name, playerId, prefs } = get();
     get()._goHome();
+    get().toast('Connecting to watch…');
+    const { NetGuest } = await loadNet();
     const guest = new NetGuest(
       code.trim().toUpperCase(),
       playerId,
@@ -750,7 +767,6 @@ export const useStore = create<Store>((set, get) => ({
       password ?? '',
     );
     set({ net: guest, netKind: 'guest', mode: 'online', chat: [], lastEventSeen: 0, wasMyTurn: false });
-    get().toast('Connecting to watch…');
   },
 
   leaveRoom() {
