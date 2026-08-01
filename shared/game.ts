@@ -660,6 +660,7 @@ export function toClientState(game: GameCore, playerId: string): ClientGameState
       team: p.team,
       isBot: p.isBot,
       connected: p.connected,
+      away: p.away,
       handCount: p.hand.length,
       avatar: p.avatar,
     })),

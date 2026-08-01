@@ -197,14 +197,16 @@ export default function Game() {
         </div>
         <div className="gh-center">
           <TurnTimer />
-          <div className={`gh-turn ${myTurn ? 'mine' : ''}`}>
+          <div className={`gh-turn ${myTurn ? 'mine' : ''} ${!myTurn && current?.away ? 'away' : ''}`}>
             {spectating
               ? `👁 Spectating: ${over ? 'game over' : `${current?.name}'s turn`}`
               : over
                 ? 'Game over'
                 : myTurn
                   ? '✦ YOUR TURN: play a card'
-                  : `${current?.name}'s turn…`}
+                  : current?.away
+                    ? `⏸ ${current?.name} is away — waiting…`
+                    : `${current?.name}'s turn…`}
           </div>
         </div>
         <div className="gh-right">

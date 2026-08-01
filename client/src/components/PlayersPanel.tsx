@@ -59,7 +59,10 @@ export default function PlayersPanel() {
                   ) : (
                     <span className="badge bot">AI</span>
                   ))}
-                {!p.connected && !p.isBot && <span className="badge off">OFFLINE</span>}
+                {!p.isBot && p.away && <span className="badge away">AWAY</span>}
+                {!p.isBot && !p.away && !p.connected && (
+                  <span className="badge off">OFFLINE</span>
+                )}
               </span>
               <span className="gp-cards" title={`${p.handCount} cards`}>
                 🂠 {p.handCount}

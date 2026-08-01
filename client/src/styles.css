@@ -2913,15 +2913,21 @@ body.colorblind .chip-star {
   .hand-side {
     display: none;
   }
-  /* pass / exchange prompt floats above the hand on phones */
+  /* pass / exchange prompt floats clear ABOVE the hand fan on phones, with a
+     solid pill so it never reads as sitting on the cards */
   .hand-side:has(.btn),
   .hand-side:has(.exchange-hint) {
     display: flex;
     position: fixed;
     left: 50%;
     transform: translateX(-50%);
-    bottom: calc(128px + env(safe-area-inset-bottom));
-    z-index: 80;
+    bottom: calc(172px + env(safe-area-inset-bottom));
+    z-index: 90;
+    background: rgba(10, 20, 16, 0.92);
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    padding: 6px 10px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
   }
 
   .toasts {
@@ -4129,4 +4135,31 @@ button.stats-line:hover {
   font-size: 0.9rem;
   margin: 4px 0 2px;
   color: var(--gold);
+}
+
+/* in-game room code (Settings) so dropped players can rejoin */
+.room-code-chip {
+  align-self: flex-start;
+  font-family: ui-monospace, monospace;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+  border-radius: 10px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.room-code-chip:hover {
+  background: color-mix(in srgb, var(--gold) 20%, transparent);
+}
+
+/* away / busy presence (online) */
+.badge.away {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fcd34d;
+}
+.gh-turn.away {
+  color: #fcd34d;
 }

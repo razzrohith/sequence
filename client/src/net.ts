@@ -72,6 +72,10 @@ const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884
 const BROKER_PREFIX = ['E', 'H']; // one letter per broker, part of the room code
 const TOPIC = 'seqrz2';
 const QOS = 1 as const;
+/** How long a backgrounded/dropped human's turn waits before the AI covers it,
+ * so a quick app-switch is never auto-played. They resume the instant they
+ * return; a bot only steps in if they're still gone after this. */
+const AWAY_GRACE_MS = 60_000;
 /** How long the heir waits after a host's Last-Will before taking over. The will
  * also fires on a transient drop, and the host auto-reconnects (reconnectPeriod
  * 2000ms) and re-announces, this grace stops a blip creating two hosts. */
@@ -126,6 +130,8 @@ interface HostPlayer {
   isBot: boolean;
   connected: boolean;
   ready?: boolean;
+  /** app backgrounded / connection dropped — their turn waits for them */
+  away?: boolean;
 }
 
 // ---------------- HOST ----------------
@@ -304,9 +310,13 @@ export class NetHost {
       if (existing) {
         existing.connected = true;
         existing.isBot = false;
+        existing.away = false;
         if (this.game) {
           const gp = this.game.players.find((p) => p.id === playerId);
-          if (gp) gp.isBot = false;
+          if (gp) {
+            gp.isBot = false;
+            gp.away = false;
+          }
         }
         this.toPlayer(playerId, { t: 'joined', code: this.code, spectator: false });
         this.pushRoom();
@@ -338,7 +348,9 @@ export class NetHost {
     }
 
     if (!from) return;
-    if (t === 'bye') this.onLeave(from);
+    if (t === 'bye') this.onLeave(from); // deliberate Leave: a bot takes the seat
+    else if (t === 'gone') this.onGone(from); // dropped/backgrounded: wait for them
+    else if (t === 'presence') this.setAway(from, msg.away === true);
     else if (t === 'move') this.applyPlayerMove(from, msg.move as Move);
     else if (t === 'chat') this.chat(from, this.clean(msg.text, 300));
     else if (t === 'emote') this.emote(from, this.clean(msg.emote, 8));
@@ -346,6 +358,53 @@ export class NetHost {
     else if (t === 'hint') this.announceHint(from);
     else if (t === 'undoReq') this.requestUndo(from);
     else if (t === 'undoResp') this.respondUndo(from, msg.approve === true);
+  }
+
+  /** flip a player's away/busy flag on both the roster and the live game, then
+   * rebroadcast so everyone sees it and the turn scheduling re-evaluates. */
+  private setAway(id: string, away: boolean) {
+    const rp = this.players.find((p) => p.id === id);
+    if (!rp || !!rp.away === away) return;
+    rp.away = away;
+    const gp = this.game?.players.find((p) => p.id === id);
+    if (gp) gp.away = away;
+    // a returning player must cancel any pending AI cover; a leaving one starts
+    // the wait fresh
+    if (this.botTimer) {
+      clearTimeout(this.botTimer);
+      this.botTimer = null;
+    }
+    if (this.started) this.afterChange();
+    else this.pushRoom();
+  }
+
+  /** a player's connection dropped (LWT) — unlike a deliberate Leave they are
+   * NOT turned into a bot; they're marked away so their turn waits for them to
+   * come back, and the AI only covers after a long grace (see scheduleBots). */
+  private onGone(pid: string) {
+    if (this.spectators.some((s) => s.id === pid)) {
+      this.spectators = this.spectators.filter((s) => s.id !== pid);
+      this.pushRoom();
+      this.pushState();
+      return;
+    }
+    const p = this.players.find((x) => x.id === pid);
+    if (!p) return;
+    if (!this.started) {
+      this.players = this.players.filter((x) => x.id !== pid);
+      this.pushRoom();
+      return;
+    }
+    p.connected = false;
+    p.away = true;
+    const gp = this.game?.players.find((x) => x.id === pid);
+    if (gp) gp.away = true;
+    if (this.botTimer) {
+      clearTimeout(this.botTimer);
+      this.botTimer = null;
+    }
+    this.pushRoom();
+    this.afterChange();
   }
 
   private onLeave(pid: string) {
@@ -593,6 +652,10 @@ export class NetHost {
   emoteLocal(e: string) {
     this.emote(this.hostId, e);
   }
+  /** the host backgrounded/returned — mark the host's own seat away like anyone */
+  setOwnAway(away: boolean) {
+    this.setAway(this.hostId, away);
+  }
   requestUndoLocal() {
     this.requestUndo(this.hostId);
   }
@@ -747,7 +810,11 @@ export class NetHost {
     if (!g || g.winner || g.stalemate || this.botTimer) return;
     const cur = g.players[g.turn];
     const rp = this.players.find((p) => p.id === cur.id);
-    if (!(cur.isBot || (rp && !rp.connected))) return;
+    // a real bot moves briskly; a busy/dropped human (away or connection lost)
+    // gets a long grace to return before the AI ever covers their turn
+    const humanBusy = !!rp && !cur.isBot && (rp.away || !rp.connected);
+    if (!cur.isBot && !humanBusy) return;
+    const delay = cur.isBot ? 750 + Math.random() * 800 : AWAY_GRACE_MS;
     this.botTimer = setTimeout(
       () => {
         this.botTimer = null;
@@ -755,7 +822,8 @@ export class NetHost {
         if (!gg || gg.winner || gg.stalemate) return;
         const p = gg.players[gg.turn];
         const r = this.players.find((x) => x.id === p.id);
-        if (!(p.isBot || (r && !r.connected))) return;
+        const stillBusy = !!r && !p.isBot && (r.away || !r.connected);
+        if (!p.isBot && !stillBusy) return; // they came back — don't cover
         const mv = chooseBotMove(gg, p);
         if (!applyMove(gg, p.id, mv).ok) {
           const dead = p.hand.find((c) => isDeadCard(gg, c));
@@ -785,7 +853,9 @@ export class NetHost {
     if (deadline === null) return;
     const cur = g.players[g.turn];
     const rp = this.players.find((p) => p.id === cur.id);
-    if (!rp || cur.isBot || !rp.connected) return;
+    // never let the per-turn timer auto-play a busy/away player — the away
+    // grace (scheduleBots) is the only thing that eventually covers for them
+    if (!rp || cur.isBot || !rp.connected || rp.away) return;
     this.turnTimer = setTimeout(
       () => {
         this.turnTimer = null;
@@ -882,8 +952,10 @@ export class NetGuest {
     this.client = mqtt.connect(
       BROKERS[idx] ?? BROKERS[0],
       mqttOptions(playerId, {
+        // a dropped connection is 'gone' (host waits for them), distinct from the
+        // deliberate 'bye' the Leave button sends (host lets a bot take the seat)
         topic: `${this.base}/h`,
-        payload: JSON.stringify({ t: 'bye', from: playerId }),
+        payload: JSON.stringify({ t: 'gone', from: playerId }),
       }),
     );
     this.client.on('connect', () => {
@@ -1032,6 +1104,11 @@ export class NetGuest {
   /** tell the table this player just took a hint */
   hintUsed() {
     this.send({ t: 'hint' });
+  }
+
+  /** tell the host the app went to the background / came back */
+  setAway(away: boolean) {
+    this.send({ t: 'presence', away });
   }
 
   ready(v: boolean) {

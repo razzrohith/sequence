@@ -527,6 +527,8 @@ interface Store {
   selectCard: (card: Card | null) => void;
   previewCardSet: (card: Card | null) => void;
   requestHint: () => void;
+  /** flag this player busy/back when the app is backgrounded/foregrounded */
+  setAway: (away: boolean) => void;
   setReady: (v: boolean) => void;
   toast: (text: string, kind?: Toast['kind']) => void;
   dismissToast: (id: number) => void;
@@ -753,6 +755,20 @@ export const useStore = create<Store>((set, get) => ({
     } else if (isMyTurn && !s.wasMyTurn) {
       sfx.yourTurn();
       notifyMyTurn(get().prefs.notifyTurn);
+    }
+
+    // let the table know when it becomes a backgrounded player's turn (once, on
+    // the transition — not on every state re-broadcast)
+    if (!over && s.mode === 'online') {
+      const cur = game.players[game.turn];
+      const prevCur = prev?.players[prev.turn];
+      if (
+        cur?.away &&
+        cur.id !== game.yourId &&
+        (prev?.turn !== game.turn || !prevCur?.away)
+      ) {
+        get().toast(`${cur.name} is away — waiting for them…`, 'info');
+      }
     }
 
     set({
@@ -1108,6 +1124,13 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
 
+  setAway(away) {
+    const s = get();
+    if (s.mode !== 'online' || !s.net) return;
+    if (s.netKind === 'host') (s.net as NetHost).setOwnAway(away);
+    else if (s.netKind === 'guest') (s.net as NetGuest).setAway(away);
+  },
+
   requestHint() {
     const announceHint = () => {
       const s2 = get();
@@ -1368,4 +1391,14 @@ export const useStore = create<Store>((set, get) => ({
 
 if (import.meta.env.DEV) {
   (window as unknown as Record<string, unknown>).__seq = useStore;
+}
+
+// tell the table when this player backgrounds/returns, so an online game waits
+// for a busy player instead of letting the AI cover their turn
+try {
+  document.addEventListener('visibilitychange', () => {
+    useStore.getState().setAway(document.visibilityState === 'hidden');
+  });
+} catch {
+  /* no document (SSR/tests) */
 }

@@ -23,6 +23,9 @@ export interface ServerPlayer {
   isBot: boolean;
   hand: Card[];
   connected: boolean;
+  /** the player has the app in the background (busy), so their turn waits for
+   * them instead of being auto-played */
+  away?: boolean;
   avatar?: string;
 }
 
@@ -32,6 +35,8 @@ export interface PublicPlayer {
   team: Team;
   isBot: boolean;
   connected: boolean;
+  /** true while this player has the app backgrounded */
+  away?: boolean;
   handCount: number;
   avatar?: string;
 }

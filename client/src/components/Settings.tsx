@@ -75,6 +75,31 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         </button>
         <h2>Settings</h2>
 
+        {mode === 'online' && room && (
+          <Section title="Room">
+            <div className="setting-group">
+              <span className="setting-label">Room code</span>
+              <button
+                className="room-code-chip"
+                title="Copy the room code"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(room.code);
+                    toast('Room code copied.', 'gold');
+                  } catch {
+                    toast(`Room code: ${room.code}`, 'info');
+                  }
+                }}
+              >
+                {room.code} ⧉
+              </button>
+              <i className="setting-note">
+                Share this so a player who drops can rejoin from Home with the same code.
+              </i>
+            </div>
+          </Section>
+        )}
+
         <Section title="Profile">
           <div className="setting-group">
             <span className="setting-label">Your avatar</span>
