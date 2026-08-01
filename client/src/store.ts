@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { chooseBotMove } from '../../shared/bot';
+import { type BotPersonality, PERSONALITIES, chooseBotMove } from '../../shared/bot';
 import {
   applyMove,
   createGame,
@@ -221,6 +221,8 @@ export interface SavedLocal {
   viewer: string | null;
   /** the deal's shareable seed, kept so a resumed game still shows/shares it */
   seed?: string | null;
+  /** each bot's personality, kept so a resumed game keeps the same opponents */
+  persona?: Record<string, BotPersonality>;
 }
 
 /** Persist an in-progress solo / pass-and-play game so a refresh doesn't lose it.
@@ -231,13 +233,14 @@ function saveLocalGame(
   seats: LocalSeat[],
   viewer: string | null,
   seed: string | null,
+  persona: Record<string, BotPersonality>,
 ) {
   try {
     if (core.winner || core.stalemate) {
       LS.remove(LOCAL_GAME_KEY);
       return;
     }
-    LS.set(LOCAL_GAME_KEY, JSON.stringify({ core, seats, viewer, seed }));
+    LS.set(LOCAL_GAME_KEY, JSON.stringify({ core, seats, viewer, seed, persona }));
   } catch {
     /* ignore */
   }
@@ -406,6 +409,8 @@ interface Store {
   localViewer: string | null;
   /** the shareable seed of the current local deal (null for online games) */
   localSeed: string | null;
+  /** each local bot's personality, keyed by player id (Lx) */
+  localBotPersona: Record<string, BotPersonality>;
   handoffName: string | null;
   localBotTimer: number | null;
   /** snapshot of the local core taken before the last on-device move, for undo */
@@ -520,6 +525,7 @@ export const useStore = create<Store>((set, get) => ({
   localCore: null,
   localSeats: [],
   localSeed: null,
+  localBotPersona: {},
   localUndo: null,
   localViewer: null,
   handoffName: null,
@@ -759,6 +765,7 @@ export const useStore = create<Store>((set, get) => ({
       localCore: null,
       localSeats: [],
       localSeed: null,
+      localBotPersona: {},
       localViewer: null,
       localBotTimer: null,
       handoffName: null,
@@ -1073,6 +1080,7 @@ export const useStore = create<Store>((set, get) => ({
       localCore: saved.core,
       localSeats: saved.seats,
       localSeed: saved.seed ?? null,
+      localBotPersona: saved.persona ?? {},
       localViewer: saved.viewer,
       handoffName: null,
       localBotTimer: null,
@@ -1121,6 +1129,14 @@ export const useStore = create<Store>((set, get) => ({
       defaultSettings({ ...opts?.settings, teamCount, botDifficulty: get().prefs.difficulty }),
       seededRng(seed),
     );
+    // give each bot a personality, drawn deterministically from the seed so the
+    // same deal always faces the same opponents
+    const personaList: BotPersonality[] = ['aggressive', 'defensive', 'trickster', 'balanced'];
+    const pr = seededRng(seed + ':persona');
+    const localBotPersona: Record<string, BotPersonality> = {};
+    seats.forEach((seat, i) => {
+      if (seat.isBot) localBotPersona[`L${i}`] = personaList[Math.floor(pr() * personaList.length)];
+    });
     const firstHuman = core.players.find((p) => !p.isBot);
     const starter = core.players[core.turn];
     set({
@@ -1128,6 +1144,7 @@ export const useStore = create<Store>((set, get) => ({
       localCore: core,
       localSeats: seats,
       localSeed: seed,
+      localBotPersona,
       localViewer: (!starter.isBot ? starter.id : firstHuman?.id) ?? core.players[0].id,
       handoffName: null,
       localBotTimer: null,
@@ -1217,7 +1234,7 @@ export const useStore = create<Store>((set, get) => ({
     get().ingestGameState(toClientState(core, viewer));
     set({ handoffName });
     // checkpoint after every move so a refresh resumes exactly here
-    saveLocalGame(core, s.localSeats, s.localViewer, s.localSeed);
+    saveLocalGame(core, s.localSeats, s.localViewer, s.localSeed, s.localBotPersona);
 
     if (!over && cur?.isBot && !get().localBotTimer) {
       const timer = window.setTimeout(() => {
@@ -1226,7 +1243,7 @@ export const useStore = create<Store>((set, get) => ({
         if (!c || c.winner || c.stalemate) return;
         const p = c.players[c.turn];
         if (!p?.isBot) return;
-        const mv = chooseBotMove(c, p);
+        const mv = chooseBotMove(c, p, c.settings.botDifficulty, get().localBotPersona[p.id]);
         const res = applyMove(c, p.id, mv);
         if (!res.ok) {
           // failsafe: a guaranteed-legal move, then pass, never leave it stuck

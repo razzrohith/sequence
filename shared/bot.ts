@@ -71,18 +71,24 @@ function evalWindow(
   return { ownOpen, ownCount, oppOpenFor, oppCount };
 }
 
-function scorePlacement(game: GameCore, team: Team, r: number, c: number): number {
+function scorePlacement(
+  game: GameCore,
+  team: Team,
+  r: number,
+  c: number,
+  weights: Weights = BALANCED_WEIGHTS,
+): number {
   let score = 0;
   const windows = WINDOWS_BY_CELL.get(`${r},${c}`) ?? [];
   for (const w of windows) {
     const ev = evalWindow(game, w, team, [r, c]);
     if (ev.ownOpen) {
       const n = Math.min(ev.ownCount, 4);
-      score += OWN_VALUE[n];
+      score += OWN_VALUE[n] * weights.own;
     }
     if (ev.oppOpenFor) {
       const n = Math.min(ev.oppCount, 4);
-      score += BLOCK_VALUE[n];
+      score += BLOCK_VALUE[n] * weights.block;
     }
   }
   return score;
@@ -121,13 +127,38 @@ const DIFFICULTY = {
   hard: { noise: 0.5, randomChance: 0, jackTax: 45 },
 } as const;
 
+/** How a personality bends the scoring: >1 own = pushes its own lines harder,
+ * >1 block = defends more, >1 jack = hoards power cards (higher jack "tax"). */
+export interface Weights {
+  own: number;
+  block: number;
+  jack: number;
+}
+const BALANCED_WEIGHTS: Weights = { own: 1, block: 1, jack: 1 };
+
+export type BotPersonality = 'balanced' | 'aggressive' | 'defensive' | 'trickster';
+
+/** Personality profiles: flavor + how they weight the scoring. `balanced` is
+ * exactly the tuned default (all weights 1), so unspecified bots are unchanged. */
+export const PERSONALITIES: Record<
+  BotPersonality,
+  { label: string; emoji: string; weights: Weights }
+> = {
+  balanced: { label: 'Balanced', emoji: '🎯', weights: BALANCED_WEIGHTS },
+  aggressive: { label: 'Aggressive', emoji: '🗡️', weights: { own: 1.4, block: 0.55, jack: 0.6 } },
+  defensive: { label: 'Defensive', emoji: '🛡️', weights: { own: 0.85, block: 1.9, jack: 1.25 } },
+  trickster: { label: 'Trickster', emoji: '🃏', weights: { own: 1.05, block: 1.1, jack: 0.45 } },
+};
+
 export function chooseBotMove(
   game: GameCore,
   player: ServerPlayer,
   difficulty: BotDifficulty = game.settings.botDifficulty ?? 'medium',
+  personality: BotPersonality = 'balanced',
 ): Move {
   const team = player.team;
   const tune = DIFFICULTY[difficulty] ?? DIFFICULTY.medium;
+  const weights = (PERSONALITIES[personality] ?? PERSONALITIES.balanced).weights;
 
   // 1) exchange a dead card if we have one (free value), hard/medium always do;
   // easy sometimes skips it (more human-like weak play)
@@ -154,16 +185,18 @@ export function chooseBotMove(
     if (cells.length === 0) continue;
 
     if (isOneEyed(card)) {
+      // a one-eyed jack removes an opponent chip: a defensive act, so it scales
+      // with the block weight, and the jack tax with the jack (hoarding) weight
       for (const [r, c] of cells) {
-        const s = scoreRemoval(game, team, r, c) - 90 + noise();
+        const s = scoreRemoval(game, team, r, c) * weights.block - 90 * weights.jack + noise();
         if (!best || s > best.score) best = { move: { type: 'remove', card, r, c }, score: s };
       }
       continue;
     }
 
-    const jackTax = isTwoEyed(card) ? tune.jackTax : 0;
+    const jackTax = isTwoEyed(card) ? tune.jackTax * weights.jack : 0;
     for (const [r, c] of cells) {
-      const s = scorePlacement(game, team, r, c) - jackTax + noise();
+      const s = scorePlacement(game, team, r, c, weights) - jackTax + noise();
       if (!best || s > best.score) best = { move: { type: 'place', card, r, c }, score: s };
     }
   }

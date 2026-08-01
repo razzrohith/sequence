@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { PERSONALITIES } from '../../../shared/bot';
 import type { Team } from '../../../shared/types';
 import { useStore } from '../store';
 
@@ -6,6 +7,8 @@ const TEAM_LABEL: Record<Team, string> = { red: 'Red', blue: 'Blue', green: 'Gre
 
 export default function PlayersPanel() {
   const game = useStore((s) => s.game);
+  const persona = useStore((s) => s.localBotPersona);
+  const mode = useStore((s) => s.mode);
   if (!game) return null;
 
   const teams = [...new Set(game.players.map((p) => p.team))];
@@ -45,7 +48,17 @@ export default function PlayersPanel() {
               <span className="gp-name">
                 {p.name}
                 {p.id === game.yourId && <span className="badge you">YOU</span>}
-                {p.isBot && <span className="badge bot">AI</span>}
+                {p.isBot &&
+                  (mode === 'local' && persona[p.id] ? (
+                    <span
+                      className="badge bot"
+                      title={`${PERSONALITIES[persona[p.id]].label} bot`}
+                    >
+                      {PERSONALITIES[persona[p.id]].emoji} {PERSONALITIES[persona[p.id]].label}
+                    </span>
+                  ) : (
+                    <span className="badge bot">AI</span>
+                  ))}
                 {!p.connected && !p.isBot && <span className="badge off">OFFLINE</span>}
               </span>
               <span className="gp-cards" title={`${p.handCount} cards`}>

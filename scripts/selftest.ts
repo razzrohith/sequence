@@ -6,7 +6,7 @@
  * Run: npm run selftest
  */
 import { BOARD_LAYOUT, cardAt, positionsFor, shuffledLayout } from '../shared/board';
-import { chooseBotMove } from '../shared/bot';
+import { type BotPersonality, PERSONALITIES, chooseBotMove } from '../shared/bot';
 import {
   HAND_SIZES,
   applyMove,
@@ -150,6 +150,36 @@ console.log('Board layout OK: 48 unique cards x2 + 4 free corners = 100 cells');
   assert(cleanSeed('  k7 qp2!! ') === 'K7QP2', 'cleanSeed normalizes user input');
   assert(seededRng('ABC')() === seededRng('ABC')(), 'seededRng is deterministic per code');
   assert(/^DLY-\d{8}$/.test(dailySeed(new Date(2026, 7, 1))), 'dailySeed has the daily format');
+}
+
+// bot personalities: balanced is the neutral default, and a game where every
+// bot has a different personality still completes cleanly (no crash/leak)
+{
+  const bw = PERSONALITIES.balanced.weights;
+  assert(
+    bw.own === 1 && bw.block === 1 && bw.jack === 1,
+    'balanced personality is the neutral default (weights all 1)',
+  );
+  const kinds: BotPersonality[] = ['aggressive', 'defensive', 'trickster', 'balanced'];
+  const g = freshGame(4, 2, false);
+  let moves = 0;
+  while (!g.winner && !g.stalemate && moves < 4000) {
+    const cur = g.players[g.turn];
+    const persona = kinds[g.players.indexOf(cur) % kinds.length];
+    const res = applyMove(g, cur.id, chooseBotMove(g, cur, 'hard', persona));
+    if (!res.ok) {
+      const dead = cur.hand.find((c) => isDeadCard(g, c));
+      const rescued =
+        (dead && applyMove(g, cur.id, { type: 'exchangeDead', card: dead }).ok) ||
+        applyMove(g, cur.id, { type: 'pass' }).ok;
+      if (!rescued) throw new Error('personality bots deadlocked');
+    }
+    const live =
+      g.deck.length + g.discard.length + g.players.reduce((a, p) => a + p.hand.length, 0);
+    if (live !== 104) throw new Error(`personality card leak at move ${moves}`);
+    moves++;
+  }
+  assert(g.winner || g.stalemate, 'a game of assorted personality bots reaches an outcome');
 }
 
 // ---------- 2. rule unit tests ----------
