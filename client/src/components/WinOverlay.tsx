@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Team } from '../../../shared/types';
 import { useStore } from '../store';
+import Replay from './Replay';
 
 const TEAM_LABEL: Record<Team, string> = { red: 'RED', blue: 'BLUE', green: 'GREEN' };
 const TEAM_HEX: Record<Team, string> = { red: '#ef4444', blue: '#3b82f6', green: '#22c55e' };
@@ -90,6 +91,10 @@ export default function WinOverlay() {
   const playerId = useStore((s) => s.playerId);
   const rematch = useStore((s) => s.rematch);
   const leaveRoom = useStore((s) => s.leaveRoom);
+  const localSeed = useStore((s) => s.localSeed);
+  const startSeed = useStore((s) => s.startSeed);
+  const toast = useStore((s) => s.toast);
+  const [showReplay, setShowReplay] = useState(false);
 
   if (!game?.winner && !game?.stalemate) return null;
   const winner = game.winner;
@@ -140,12 +145,42 @@ export default function WinOverlay() {
 
         <Recap />
 
+        {/* seed of this deal: local games can share it, replay it, or watch it back */}
+        {mode === 'local' && localSeed && (
+          <div className="seed-panel">
+            <span className="seed-label">Board seed</span>
+            <button
+              className="seed-code"
+              title="Copy this seed"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(localSeed);
+                  toast('Seed copied. Share it for the same deal.', 'gold');
+                } catch {
+                  /* clipboard blocked */
+                }
+              }}
+            >
+              {localSeed} ⧉
+            </button>
+            <div className="seed-panel-actions">
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowReplay(true)}>
+                ▶ Watch replay
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => startSeed(localSeed)}>
+                ↻ Replay this deal
+              </button>
+            </div>
+          </div>
+        )}
+
         <button
           className="btn btn-ghost"
           onClick={async () => {
+            const seedLine = mode === 'local' && localSeed ? ` Seed ${localSeed}.` : '';
             const text = winner
-              ? `${TEAM_LABEL[winner]} won our game of Sequence! ${chipsSummary}`
-              : `Our game of Sequence ended in a draw. ${chipsSummary}`;
+              ? `${TEAM_LABEL[winner]} won our game of Sequence!${seedLine} ${chipsSummary}`
+              : `Our game of Sequence ended in a draw.${seedLine} ${chipsSummary}`;
             try {
               if (navigator.share) await navigator.share({ text });
               else await navigator.clipboard.writeText(text);
@@ -175,6 +210,7 @@ export default function WinOverlay() {
           </button>
         </div>
       </motion.div>
+      {showReplay && <Replay onClose={() => setShowReplay(false)} />}
     </div>
   );
 }

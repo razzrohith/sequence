@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+import { dailySeed } from '../../../shared/rng';
 import { useStore } from '../store';
 import LocalSetup from './LocalSetup';
 import Rules from './Rules';
@@ -10,6 +11,9 @@ export default function Home() {
   const setName = useStore((s) => s.setName);
   const createRoom = useStore((s) => s.createRoom);
   const quickPlay = useStore((s) => s.quickPlay);
+  const startDaily = useStore((s) => s.startDaily);
+  const startSeed = useStore((s) => s.startSeed);
+  const dailyResult = useStore((s) => s.dailyResult);
   const savedLocal = useStore((s) => s.savedLocal);
   const resumeLocal = useStore((s) => s.resumeLocal);
   const joinRoom = useStore((s) => s.joinRoom);
@@ -25,6 +29,11 @@ export default function Home() {
   const [showLocal, setShowLocal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [watchMode, setWatchMode] = useState(false);
+  const [seedInput, setSeedInput] = useState('');
+  const [showSeed, setShowSeed] = useState(false);
+
+  // today's challenge is "done" only if the stored result is for today's seed
+  const dailyDone = dailyResult && dailyResult.seed === dailySeed();
 
   const named = name.trim().length > 0;
   const online = connected && named;
@@ -114,6 +123,49 @@ export default function Home() {
             2 vs 2
           </motion.button>
         </div>
+
+        <div className="mode-title">Daily challenge &amp; seeds</div>
+        <motion.button
+          className={`btn daily-btn ${dailyDone ? 'btn-secondary' : 'btn-primary'}`}
+          disabled={!named}
+          whileTap={{ scale: 0.96 }}
+          onClick={startDaily}
+        >
+          <span className="daily-ico">🎯</span>
+          <span className="daily-text">
+            <b>{dailyDone ? "Replay today's challenge" : "Play today's challenge"}</b>
+            <i>
+              {dailyDone
+                ? dailyResult!.won
+                  ? `Solved today in ${dailyResult!.moves} moves`
+                  : 'Not solved yet today — try again'
+                : 'Same deal for everyone, every day'}
+            </i>
+          </span>
+        </motion.button>
+        <button className="btn-link seed-toggle" onClick={() => setShowSeed((v) => !v)}>
+          {showSeed ? 'Hide seed play' : 'Play a shared seed code'}
+        </button>
+        {showSeed && (
+          <div className="join-row seed-row">
+            <input
+              className="code-input"
+              value={seedInput}
+              placeholder="SEED"
+              maxLength={12}
+              onChange={(e) => setSeedInput(e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase())}
+              onKeyDown={(e) => e.key === 'Enter' && named && seedInput && startSeed(seedInput)}
+            />
+            <motion.button
+              className="btn btn-secondary"
+              disabled={!named || !seedInput}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => startSeed(seedInput)}
+            >
+              Play seed
+            </motion.button>
+          </div>
+        )}
 
         <div className="mode-title">Play with friends</div>
         <div className="friends-row">

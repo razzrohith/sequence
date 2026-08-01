@@ -19,6 +19,7 @@ import {
   turnDeadlineFor,
   validateBoardLayout,
 } from '../shared/game';
+import { cleanSeed, dailySeed, seededRng } from '../shared/rng';
 import { TEAMS } from '../shared/types';
 import type { Card, GameCore, ServerPlayer, Team } from '../shared/types';
 
@@ -131,6 +132,24 @@ console.log('Board layout OK: 48 unique cards x2 + 4 free corners = 100 cells');
       JSON.stringify(shuffledLayout(mulberry32(7))),
     'a shuffled board is reproducible from its seed',
   );
+}
+
+// shareable seed codes: the same code always deals the same game, so daily
+// challenges and "replay this deal" are fair and reproducible
+{
+  const players = () => [
+    { id: 'A', name: 'A', isBot: false, team: TEAMS[0] },
+    { id: 'B', name: 'B', isBot: true, team: TEAMS[1] },
+  ];
+  const deal = (code: string) => {
+    const g = createGame(players(), defaultSettings({ teamCount: 2 }), seededRng(code));
+    return JSON.stringify({ deck: g.deck, hands: g.players.map((p) => p.hand), turn: g.turn });
+  };
+  assert(deal('K7QP2') === deal('K7QP2'), 'same seed code deals an identical game');
+  assert(deal('K7QP2') !== deal('Z9ABC'), 'different seed codes deal different games');
+  assert(cleanSeed('  k7 qp2!! ') === 'K7QP2', 'cleanSeed normalizes user input');
+  assert(seededRng('ABC')() === seededRng('ABC')(), 'seededRng is deterministic per code');
+  assert(/^DLY-\d{8}$/.test(dailySeed(new Date(2026, 7, 1))), 'dailySeed has the daily format');
 }
 
 // ---------- 2. rule unit tests ----------

@@ -19,6 +19,7 @@ import type {
   ServerPlayer,
 } from '../../shared/types';
 import { TEAMS } from '../../shared/types';
+import { cleanSeed, dailySeed, makeSeed, seededRng } from '../../shared/rng';
 import type { NetGuest, NetHost, NetHandlers } from './net';
 import { setHaptics, setMuted, setVolume, sfx } from './sounds';
 
@@ -216,18 +217,25 @@ export interface SavedLocal {
   core: GameCore;
   seats: LocalSeat[];
   viewer: string | null;
+  /** the deal's shareable seed, kept so a resumed game still shows/shares it */
+  seed?: string | null;
 }
 
 /** Persist an in-progress solo / pass-and-play game so a refresh doesn't lose it.
  * JSON.stringify drops the core's `rng` function; it's restored on load (the deck
  * order is already fixed in the saved state, so play continues identically). */
-function saveLocalGame(core: GameCore, seats: LocalSeat[], viewer: string | null) {
+function saveLocalGame(
+  core: GameCore,
+  seats: LocalSeat[],
+  viewer: string | null,
+  seed: string | null,
+) {
   try {
     if (core.winner || core.stalemate) {
       LS.remove(LOCAL_GAME_KEY);
       return;
     }
-    LS.set(LOCAL_GAME_KEY, JSON.stringify({ core, seats, viewer }));
+    LS.set(LOCAL_GAME_KEY, JSON.stringify({ core, seats, viewer, seed }));
   } catch {
     /* ignore */
   }
@@ -252,6 +260,24 @@ function loadStats(): Stats {
     return { wins: s.wins ?? 0, losses: s.losses ?? 0, games: s.games ?? 0 };
   } catch {
     return { wins: 0, losses: 0, games: 0 };
+  }
+}
+
+const DAILY_KEY = 'seq:daily';
+
+/** Your result on a given day's challenge, kept so Home can show today's status. */
+export interface DailyResult {
+  seed: string;
+  won: boolean;
+  moves: number;
+}
+
+function loadDaily(): DailyResult | null {
+  try {
+    const d = JSON.parse(LS.get(DAILY_KEY) ?? 'null');
+    return d && typeof d.seed === 'string' ? d : null;
+  } catch {
+    return null;
   }
 }
 
@@ -363,6 +389,8 @@ interface Store {
   /** the board theme actually on screen right now (room default, or your override) */
   boardView: string;
   stats: Stats;
+  /** your result on today's daily challenge, or null if not played today */
+  dailyResult: DailyResult | null;
   emotes: FloatingEmote[];
   spectating: boolean;
 
@@ -374,6 +402,8 @@ interface Store {
   localCore: GameCore | null;
   localSeats: LocalSeat[];
   localViewer: string | null;
+  /** the shareable seed of the current local deal (null for online games) */
+  localSeed: string | null;
   handoffName: string | null;
   localBotTimer: number | null;
   /** snapshot of the local core taken before the last on-device move, for undo */
@@ -425,7 +455,11 @@ interface Store {
   dismissToast: (id: number) => void;
   ingestGameState: (game: ClientGameState) => void;
 
-  startLocal: (seats: LocalSeat[]) => void;
+  startLocal: (seats: LocalSeat[], opts?: { seed?: string; daily?: boolean }) => void;
+  /** start today's daily challenge: a fixed deal shared by everyone that day */
+  startDaily: () => void;
+  /** start a local game from a pasted/typed seed code (you vs one bot) */
+  startSeed: (code: string) => void;
   confirmHandoff: () => void;
   localTick: () => void;
 }
@@ -457,12 +491,14 @@ export const useStore = create<Store>((set, get) => ({
   prefs: initialPrefs,
   boardView: initialPrefs.boardTheme,
   stats: loadStats(),
+  dailyResult: loadDaily(),
   emotes: [],
   spectating: false,
 
   savedLocal: loadLocalGame(),
   localCore: null,
   localSeats: [],
+  localSeed: null,
   localUndo: null,
   localViewer: null,
   handoffName: null,
@@ -563,6 +599,15 @@ export const useStore = create<Store>((set, get) => ({
         };
         LS.set('seq:stats', JSON.stringify(stats));
         set({ stats });
+      }
+      // if this was today's daily challenge, record the result for Home to show
+      if (s.mode === 'local' && s.localSeed && s.localSeed === dailySeed() && myTeam) {
+        const moves = game.log.filter(
+          (e) => e.kind === 'place' && e.playerId === game.yourId,
+        ).length;
+        const res: DailyResult = { seed: s.localSeed, won: game.winner === myTeam, moves };
+        LS.set(DAILY_KEY, JSON.stringify(res));
+        set({ dailyResult: res });
       }
     } else if (isMyTurn && !s.wasMyTurn) {
       sfx.yourTurn();
@@ -687,6 +732,7 @@ export const useStore = create<Store>((set, get) => ({
       hint: null,
       localCore: null,
       localSeats: [],
+      localSeed: null,
       localViewer: null,
       localBotTimer: null,
       handoffName: null,
@@ -995,6 +1041,7 @@ export const useStore = create<Store>((set, get) => ({
       mode: 'local',
       localCore: saved.core,
       localSeats: saved.seats,
+      localSeed: saved.seed ?? null,
       localViewer: saved.viewer,
       handoffName: null,
       localBotTimer: null,
@@ -1014,7 +1061,7 @@ export const useStore = create<Store>((set, get) => ({
     get().localTick();
   },
 
-  startLocal(seats) {
+  startLocal(seats, opts) {
     const s = get();
     if (s.localBotTimer) clearTimeout(s.localBotTimer);
     // a local game must not leave an online transport running
@@ -1027,6 +1074,10 @@ export const useStore = create<Store>((set, get) => ({
     }
     const n = seats.length;
     const teamCount: 2 | 3 = n === 3 ? 3 : 2;
+    // every local deal gets a shareable seed: use the given one (a pasted code or
+    // the daily), otherwise mint a fresh one. The seed drives the rng so the same
+    // code always deals the same cards and board.
+    const seed = opts?.seed ? cleanSeed(opts.seed) : makeSeed();
     const core = createGame(
       seats.map((seat, i) => ({
         id: `L${i}`,
@@ -1035,6 +1086,7 @@ export const useStore = create<Store>((set, get) => ({
         team: TEAMS[i % teamCount],
       })),
       defaultSettings({ teamCount, botDifficulty: get().prefs.difficulty }),
+      seededRng(seed),
     );
     const firstHuman = core.players.find((p) => !p.isBot);
     const starter = core.players[core.turn];
@@ -1042,6 +1094,7 @@ export const useStore = create<Store>((set, get) => ({
       mode: 'local',
       localCore: core,
       localSeats: seats,
+      localSeed: seed,
       localViewer: (!starter.isBot ? starter.id : firstHuman?.id) ?? core.players[0].id,
       handoffName: null,
       localBotTimer: null,
@@ -1055,6 +1108,30 @@ export const useStore = create<Store>((set, get) => ({
       localUndo: null,
     });
     get().localTick();
+  },
+
+  startDaily() {
+    const { name } = get();
+    // today's fixed deal: you against one hard bot, same cards for everyone
+    const seats: LocalSeat[] = [
+      { name: name || 'Player', isBot: false },
+      { name: '', isBot: true },
+    ];
+    get().startLocal(seats, { seed: dailySeed(), daily: true });
+  },
+
+  startSeed(code) {
+    const clean = cleanSeed(code);
+    if (!clean) {
+      get().toast('Enter a seed code first.', 'error');
+      return;
+    }
+    const { name } = get();
+    const seats: LocalSeat[] = [
+      { name: name || 'Player', isBot: false },
+      { name: '', isBot: true },
+    ];
+    get().startLocal(seats, { seed: clean });
   },
 
   confirmHandoff() {
@@ -1084,7 +1161,7 @@ export const useStore = create<Store>((set, get) => ({
     get().ingestGameState(toClientState(core, viewer));
     set({ handoffName });
     // checkpoint after every move so a refresh resumes exactly here
-    saveLocalGame(core, s.localSeats, s.localViewer);
+    saveLocalGame(core, s.localSeats, s.localViewer, s.localSeed);
 
     if (!over && cur?.isBot && !get().localBotTimer) {
       const timer = window.setTimeout(() => {
