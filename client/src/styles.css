@@ -3760,3 +3760,69 @@ body[data-board='aurora'] .bf-oval {
   align-items: center;
   gap: 8px;
 }
+
+/* ---- House-rules presets, match length, best-of series (Wave C) ---- */
+.ls-rules {
+  margin: 12px 0 4px;
+}
+.preset-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.preset-btn {
+  flex: 1 1 auto;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.preset-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.preset-btn.on {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 18%, transparent);
+  color: var(--gold);
+}
+.preset-note {
+  margin: 8px 2px 0;
+  font-size: 0.78rem;
+  opacity: 0.72;
+  min-height: 1.1em;
+}
+.ls-match {
+  margin-top: 12px;
+}
+
+/* best-of scoreboard on the win screen */
+.series-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 2px;
+}
+.series-label {
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.78;
+}
+.series-score {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+.series-team {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.4rem;
+}

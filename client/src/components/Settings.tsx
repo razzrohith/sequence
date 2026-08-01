@@ -46,6 +46,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const playerId = useStore((s) => s.playerId);
   const game = useStore((s) => s.game);
   const updateSettings = useStore((s) => s.updateSettings);
+  const setLocalBotDifficulty = useStore((s) => s.setLocalBotDifficulty);
   // the board actually on screen (room default or your override), which can
   // differ from prefs.boardTheme after the host set the board in the lobby
   const boardView = useStore((s) => s.boardView);
@@ -325,6 +326,24 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               ))}
             </div>
           </div>
+
+          {mode === 'local' && inGame && (
+            <div className="setting-group">
+              <span className="setting-label">Bot difficulty (this game)</span>
+              <div className="seg">
+                {(['easy', 'medium', 'hard'] as const).map((d) => (
+                  <button
+                    key={d}
+                    className={`seg-btn ${game?.settings.botDifficulty === d ? 'on' : ''}`}
+                    onClick={() => setLocalBotDifficulty(d)}
+                  >
+                    {d[0].toUpperCase() + d.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <i className="setting-note">Changes the bots right now, from their next turn.</i>
+            </div>
+          )}
         </Section>
       </motion.div>
     </div>

@@ -238,16 +238,33 @@ async function driveToEnd(ref: Client, byId: Record<string, Client>, tag: string
   check(over(), `${tag}: game reached an outcome (${guard} steps)`);
   // The outcome must be internally consistent whether the game ended in a win or
   // a stalemate. Assert exactly one condition either way, so the assertion count
-  // stays deterministic run to run (a win vs. a locked/tied board no longer
-  // changes how many checks fire) and stalemate endings get covered too.
-  const w = ref.gs?.winner;
-  const outcomeOk = w
-    ? ref.gs!.sequences.filter((s) => s.team === w).length >= ref.gs!.required
-    : !!ref.gs?.stalemate;
-  check(
-    outcomeOk,
-    `${tag}: outcome consistent (${w ? 'winner has required sequences' : 'stalemate'})`,
-  );
+  // stays deterministic run to run (a win vs. a stalemate no longer changes how
+  // many checks fire) and stalemate endings get covered too.
+  const gs = ref.gs;
+  const w = gs?.winner;
+  let outcomeOk: boolean;
+  let how: string;
+  if (w) {
+    const mine = gs!.sequences.filter((s) => s.team === w).length;
+    if (gs!.endReason === 'locked') {
+      // a jammed board is scored on sequences then chips, so the winner may hold
+      // fewer than `required` — it just has to lead (or tie) every other team
+      const teams = [...new Set(gs!.players.map((p) => p.team))];
+      const best = Math.max(
+        0,
+        ...teams.filter((t) => t !== w).map((t) => gs!.sequences.filter((s) => s.team === t).length),
+      );
+      outcomeOk = mine >= best;
+      how = 'locked winner leads on sequences';
+    } else {
+      outcomeOk = mine >= gs!.required;
+      how = 'winner has required sequences';
+    }
+  } else {
+    outcomeOk = !!gs?.stalemate;
+    how = 'stalemate';
+  }
+  check(outcomeOk, `${tag}: outcome consistent (${how})`);
 }
 
 // ---------- scenarios ----------

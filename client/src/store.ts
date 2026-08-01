@@ -14,9 +14,11 @@ import type {
   ClientGameState,
   EmoteMessage,
   GameCore,
+  GameSettings,
   Move,
   RoomInfo,
   ServerPlayer,
+  Team,
 } from '../../shared/types';
 import { TEAMS } from '../../shared/types';
 import { cleanSeed, dailySeed, makeSeed, seededRng } from '../../shared/rng';
@@ -455,11 +457,28 @@ interface Store {
   dismissToast: (id: number) => void;
   ingestGameState: (game: ClientGameState) => void;
 
-  startLocal: (seats: LocalSeat[], opts?: { seed?: string; daily?: boolean }) => void;
+  startLocal: (
+    seats: LocalSeat[],
+    opts?: {
+      seed?: string;
+      daily?: boolean;
+      settings?: Partial<GameSettings>;
+      series?: number;
+      keepSeries?: boolean;
+    },
+  ) => void;
   /** start today's daily challenge: a fixed deal shared by everyone that day */
   startDaily: () => void;
   /** start a local game from a pasted/typed seed code (you vs one bot) */
   startSeed: (code: string) => void;
+  /** best-of match: how many game wins are needed (1 = single game) */
+  seriesTarget: number;
+  /** game wins per team in the current local match */
+  seriesWins: Record<Team, number>;
+  /** deal the next game of an ongoing local match (keeps the running score) */
+  nextSeriesGame: () => void;
+  /** change the bots' difficulty mid-game in a local match */
+  setLocalBotDifficulty: (d: BotDifficulty) => void;
   confirmHandoff: () => void;
   localTick: () => void;
 }
@@ -492,6 +511,8 @@ export const useStore = create<Store>((set, get) => ({
   boardView: initialPrefs.boardTheme,
   stats: loadStats(),
   dailyResult: loadDaily(),
+  seriesTarget: 1,
+  seriesWins: { red: 0, blue: 0, green: 0 },
   emotes: [],
   spectating: false,
 
@@ -608,6 +629,11 @@ export const useStore = create<Store>((set, get) => ({
         const res: DailyResult = { seed: s.localSeed, won: game.winner === myTeam, moves };
         LS.set(DAILY_KEY, JSON.stringify(res));
         set({ dailyResult: res });
+      }
+      // best-of match bookkeeping: tally the winning team's game win
+      if (s.mode === 'local' && s.seriesTarget > 1 && game.winner) {
+        const w = game.winner;
+        set({ seriesWins: { ...s.seriesWins, [w]: (s.seriesWins[w] ?? 0) + 1 } });
       }
     } else if (isMyTurn && !s.wasMyTurn) {
       sfx.yourTurn();
@@ -925,7 +951,12 @@ export const useStore = create<Store>((set, get) => ({
     const s = get();
     if (s.mode === 'local') {
       const rotated = [...s.localSeats.slice(1), s.localSeats[0]];
-      get().startLocal(rotated);
+      // keep this game's house rules and restart the match (fresh series score)
+      const core = s.localCore;
+      const rules = core
+        ? (({ teamCount: _t, botDifficulty: _b, ...r }) => r)(core.settings)
+        : undefined;
+      get().startLocal(rotated, { settings: rules, series: s.seriesTarget });
       return;
     }
     if (s.netKind === 'host') {
@@ -1085,7 +1116,9 @@ export const useStore = create<Store>((set, get) => ({
         isBot: seat.isBot,
         team: TEAMS[i % teamCount],
       })),
-      defaultSettings({ teamCount, botDifficulty: get().prefs.difficulty }),
+      // a house-rules preset can override any setting; team count and the bot
+      // strength you picked in Settings still win
+      defaultSettings({ ...opts?.settings, teamCount, botDifficulty: get().prefs.difficulty }),
       seededRng(seed),
     );
     const firstHuman = core.players.find((p) => !p.isBot);
@@ -1106,8 +1139,31 @@ export const useStore = create<Store>((set, get) => ({
       view: 'game',
       savedLocal: null,
       localUndo: null,
+      // a fresh match resets the running score; continuing one keeps it
+      ...(opts?.keepSeries
+        ? {}
+        : { seriesTarget: opts?.series ?? 1, seriesWins: { red: 0, blue: 0, green: 0 } }),
     });
     get().localTick();
+  },
+
+  nextSeriesGame() {
+    const s = get();
+    if (!s.localCore) return;
+    // reuse this match's seats and house rules, deal a brand-new random board,
+    // and keep the running series score
+    const { teamCount: _t, botDifficulty: _b, ...rules } = s.localCore.settings;
+    get().startLocal(s.localSeats, { settings: rules, keepSeries: true });
+  },
+
+  setLocalBotDifficulty(d) {
+    const core = get().localCore;
+    if (!core) return;
+    // bots read settings.botDifficulty when they move, so this takes effect from
+    // their next turn onward
+    core.settings.botDifficulty = d;
+    set({ localCore: core });
+    get().toast(`Bots set to ${d}.`, 'info');
   },
 
   startDaily() {

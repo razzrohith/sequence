@@ -94,6 +94,9 @@ export default function WinOverlay() {
   const localSeed = useStore((s) => s.localSeed);
   const startSeed = useStore((s) => s.startSeed);
   const toast = useStore((s) => s.toast);
+  const seriesTarget = useStore((s) => s.seriesTarget);
+  const seriesWins = useStore((s) => s.seriesWins);
+  const nextSeriesGame = useStore((s) => s.nextSeriesGame);
   const [showReplay, setShowReplay] = useState(false);
 
   if (!game?.winner && !game?.stalemate) return null;
@@ -101,6 +104,13 @@ export default function WinOverlay() {
   const myTeam = game.players.find((p) => p.id === game.yourId)?.team;
   const won = winner !== null && myTeam === winner;
   const isHost = mode === 'local' || room?.hostId === playerId;
+  // best-of match state (local only): running score and whether it's decided
+  const seriesTeams = [...new Set(game.players.map((p) => p.team))] as Team[];
+  const seriesActive = mode === 'local' && seriesTarget > 1;
+  const champion = seriesActive
+    ? (seriesTeams.find((t) => (seriesWins[t] ?? 0) >= seriesTarget) ?? null)
+    : null;
+  const seriesDecided = !!champion;
   const chipsSummary = [...new Set(game.players.map((p) => p.team))]
     .map(
       (t) =>
@@ -142,6 +152,24 @@ export default function WinOverlay() {
                 : 'So close! Run it back?'
             : 'Nobody could move and the teams were dead level. Rare!'}
         </p>
+
+        {seriesActive && (
+          <div className="series-panel">
+            <div className="series-label">
+              {seriesDecided
+                ? `${TEAM_LABEL[champion!]} wins the match!`
+                : `Best of ${seriesTarget * 2 - 1}`}
+            </div>
+            <div className="series-score">
+              {seriesTeams.map((t) => (
+                <span key={t} className="series-team">
+                  <span className={`team-dot ${t}`} />
+                  <b style={{ color: TEAM_HEX[t] }}>{seriesWins[t] ?? 0}</b>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         <Recap />
 
@@ -194,14 +222,25 @@ export default function WinOverlay() {
 
         <div className="win-actions">
           {isHost ? (
-            <motion.button
-              className="btn btn-primary btn-big"
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={rematch}
-            >
-              ↻ Rematch
-            </motion.button>
+            seriesActive && !seriesDecided ? (
+              <motion.button
+                className="btn btn-primary btn-big"
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={nextSeriesGame}
+              >
+                Next game ▸
+              </motion.button>
+            ) : (
+              <motion.button
+                className="btn btn-primary btn-big"
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={rematch}
+              >
+                {seriesDecided ? '↻ New match' : '↻ Rematch'}
+              </motion.button>
+            )
           ) : (
             <span className="waiting">Waiting for the host to start a rematch…</span>
           )}
