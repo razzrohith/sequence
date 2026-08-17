@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { dailySeed } from '../../../shared/rng';
-import { levelForXp, useStore, xpForStats } from '../store';
+import { isIOS, levelForXp, runningStandalone, useStore, xpForStats } from '../store';
 import LocalSetup from './LocalSetup';
 import Progress from './Progress';
 import Rules from './Rules';
@@ -24,6 +24,10 @@ export default function Home() {
   const prefs = useStore((s) => s.prefs);
   const stats = useStore((s) => s.stats);
   const achievements = useStore((s) => s.achievements);
+  const installReady = useStore((s) => s.installReady);
+  const promptInstall = useStore((s) => s.promptInstall);
+  // install/full-screen prompts are pointless inside the installed app
+  const standalone = runningStandalone();
   // an invite link (…/?r=CODE) lands you here with the code already filled in
   const [code, setCode] = useState(() => useStore.getState().pendingInvite ?? '');
   const [joinPw, setJoinPw] = useState('');
@@ -236,6 +240,35 @@ export default function Home() {
         >
           🤝 Pass &amp; Play (works offline)
         </motion.button>
+
+        {/* full-screen app: install where the browser offers it; on iPhone the
+            only path is Add to Home Screen, so explain it instead. Phones get
+            true full screen; a desktop install opens in its own app window, so
+            the promise is worded per platform. */}
+        {!standalone && installReady && (
+          <>
+            <div className="mode-title">Get the app</div>
+            <motion.button
+              className="btn btn-secondary install-btn"
+              whileTap={{ scale: 0.96 }}
+              onClick={promptInstall}
+            >
+              {window.matchMedia('(pointer: coarse)').matches
+                ? '📲 Install — full screen, no browser bars, works offline'
+                : '🖥 Install the app — its own window, works offline'}
+            </motion.button>
+          </>
+        )}
+        {!standalone && !installReady && isIOS() && (
+          <>
+            <div className="mode-title">Get the app</div>
+            <p className="ios-install-hint">
+              📲 On iPhone/iPad: tap <b>Share</b> <span className="ios-share">⬆</span> then{' '}
+              <b>Add to Home Screen</b>. The game opens full screen like an app, no browser
+              bars.
+            </p>
+          </>
+        )}
 
         {serverProbed && !connected && (
           <p className="hint offline-hint">

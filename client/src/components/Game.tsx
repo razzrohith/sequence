@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Team } from '../../../shared/types';
 import { EMOTES, useStore } from '../store';
 import Board from './Board';
@@ -10,6 +10,34 @@ import PlayersPanel from './PlayersPanel';
 import Rules from './Rules';
 import Settings from './Settings';
 import WinOverlay from './WinOverlay';
+
+// iPhone browsers have no Fullscreen API (the installed app is the full-screen
+// path there); everywhere else this button expands the game over the browser UI
+const canFullscreen =
+  typeof document !== 'undefined' && !!document.documentElement.requestFullscreen;
+
+function FullscreenButton() {
+  const [fs, setFs] = useState(() => !!document.fullscreenElement);
+  useEffect(() => {
+    const on = () => setFs(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', on);
+    return () => document.removeEventListener('fullscreenchange', on);
+  }, []);
+  if (!canFullscreen) return null;
+  return (
+    <button
+      className="btn-icon"
+      title={fs ? 'Exit full screen' : 'Full screen'}
+      aria-pressed={fs}
+      onClick={() => {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        else document.documentElement.requestFullscreen().catch(() => {});
+      }}
+    >
+      {fs ? '⤢' : '⛶'}
+    </button>
+  );
+}
 
 /** In-flow bottom action bar for phones: players, chat, emote, undo. */
 function MobileBar({
@@ -210,6 +238,7 @@ export default function Game() {
           </div>
         </div>
         <div className="gh-right">
+          <FullscreenButton />
           <button className="btn-icon" title="Settings" onClick={() => setShowSettings(true)}>
             ⚙
           </button>

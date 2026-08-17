@@ -529,6 +529,10 @@ interface Store {
   requestHint: () => void;
   /** flag this player busy/back when the app is backgrounded/foregrounded */
   setAway: (away: boolean) => void;
+  /** true once the browser has offered its install prompt (Android/desktop Chrome) */
+  installReady: boolean;
+  /** show the browser's install-app prompt (captured from beforeinstallprompt) */
+  promptInstall: () => void;
   setReady: (v: boolean) => void;
   toast: (text: string, kind?: Toast['kind']) => void;
   dismissToast: (id: number) => void;
@@ -1131,6 +1135,15 @@ export const useStore = create<Store>((set, get) => ({
     else if (s.netKind === 'guest') (s.net as NetGuest).setAway(away);
   },
 
+  installReady: false,
+  promptInstall() {
+    const ev = deferredInstall;
+    deferredInstall = null;
+    set({ installReady: false });
+    // fire-and-forget: the browser shows its own install UI from here
+    ev?.prompt().catch(() => {});
+  },
+
   requestHint() {
     const announceHint = () => {
       const s2 = get();
@@ -1401,4 +1414,51 @@ try {
   });
 } catch {
   /* no document (SSR/tests) */
+}
+
+/** Capture the browser's install-app offer (Android/desktop Chrome) so Home can
+ * show its own "Install the app" button; installing gives true full screen. */
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+}
+let deferredInstall: BeforeInstallPromptEvent | null = null;
+try {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstall = e as BeforeInstallPromptEvent;
+    useStore.setState({ installReady: true });
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredInstall = null;
+    useStore.setState({ installReady: false });
+  });
+} catch {
+  /* no window */
+}
+
+/** Already running as the installed app (standalone)? Then install/full-screen
+ * prompts are pointless and stay hidden. */
+export function runningStandalone(): boolean {
+  try {
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as unknown as { standalone?: boolean }).standalone === true
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** iPhone/iPad, where browsers have no Fullscreen API — the installed app
+ * (Share -> Add to Home Screen) is the only full-screen path. */
+export function isIOS(): boolean {
+  try {
+    return (
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      // iPadOS 13+ reports as Mac but has touch
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    );
+  } catch {
+    return false;
+  }
 }

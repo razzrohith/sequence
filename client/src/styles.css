@@ -3238,42 +3238,6 @@ body.left-handed .mobile-bar > * {
   width: 100%;
 }
 
-/* PWA install offer */
-.install-bar {
-  position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: calc(12px + env(safe-area-inset-bottom));
-  z-index: 400;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-  background: rgba(8, 20, 16, 0.96);
-  border: 1px solid var(--panel-border);
-  border-radius: 14px;
-  padding: 10px 14px;
-  color: var(--ink);
-  font-size: 13px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-}
-.install-bar button {
-  border-radius: 999px;
-  padding: 6px 14px;
-  font-weight: 700;
-  font-size: 12.5px;
-  cursor: pointer;
-  border: 1px solid var(--panel-border);
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--ink);
-}
-.install-bar .ib-yes {
-  background: var(--gold);
-  color: #1a1400;
-  border-color: transparent;
-}
-
 /* board fullness + deck meter above the board */
 .board-meter {
   display: flex;
@@ -4162,4 +4126,25 @@ button.stats-line:hover {
 }
 .gh-turn.away {
   color: #fcd34d;
+}
+
+/* install-the-app promotion (full screen on phones) */
+.install-btn {
+  width: 100%;
+}
+.ios-install-hint {
+  margin: 2px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.ios-share {
+  display: inline-block;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  padding: 0 5px;
+  font-size: 0.9em;
 }
