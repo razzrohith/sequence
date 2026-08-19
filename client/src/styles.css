@@ -1278,6 +1278,9 @@ body[data-board='ocean'] .board-frame {
 }
 
 .cell.in-seq {
+  /* lift the sequence cells so their gold ring shows above neighbours instead
+     of being clipped by adjacent chips */
+  z-index: 3;
   box-shadow: 0 0 0 2px var(--gold), 0 0 14px rgba(251, 191, 36, 0.55);
 }
 
@@ -1342,8 +1345,12 @@ body[data-board='ocean'] .board-frame {
   .cell.seq-flash,
   .cell.seq-flash::before,
   .board.won .cell.in-seq,
+  .chip-locked,
   .board-frame.your-turn {
-    animation: none;
+    /* !important so this wins regardless of source order — .chip-locked's base
+       animation rule is defined later in the file and would otherwise tie-break
+       over this override */
+    animation: none !important;
   }
 }
 
@@ -1486,16 +1493,30 @@ body.high-contrast .cf-mid-rank {
   letter-spacing: 2.2px;
   fill: rgba(255, 255, 255, 0.5);
 }
+/* a chip locked into a completed sequence: a bright, ringed, gently pulsing
+   gold coin so you can see exactly which chips scored, all game long */
 .chip-locked {
+  z-index: 5;
   box-shadow:
     inset 0 -3px 5px rgba(0, 0, 0, 0.38),
-    inset 0 2px 3px rgba(255, 255, 255, 0.38),
-    0 0 12px 3px rgba(251, 191, 36, 0.85);
+    inset 0 2px 3px rgba(255, 255, 255, 0.45),
+    0 0 0 3px var(--gold),
+    0 0 16px 5px rgba(251, 191, 36, 0.9);
+  animation: seqlock 1.8s ease-in-out infinite;
+}
+@keyframes seqlock {
+  50% {
+    box-shadow:
+      inset 0 -3px 5px rgba(0, 0, 0, 0.38),
+      inset 0 2px 3px rgba(255, 255, 255, 0.45),
+      0 0 0 3px #ffe488,
+      0 0 24px 7px rgba(251, 191, 36, 1);
+  }
 }
 .chip-star {
-  color: rgba(255, 245, 200, 0.95);
-  font-size: calc(var(--board-size) / 10 * 0.3);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  color: #fff7d6;
+  font-size: calc(var(--board-size) / 10 * 0.42);
+  text-shadow: 0 0 5px rgba(251, 191, 36, 0.95), 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 .last-ring {
   position: absolute;

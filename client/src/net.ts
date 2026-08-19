@@ -44,6 +44,7 @@ export interface HostSnapshot {
     isBot: boolean;
     connected: boolean;
     ready?: boolean;
+    away?: boolean;
   }[];
   started: boolean;
   core: GameCore | null; // rng stripped
@@ -72,10 +73,6 @@ const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884
 const BROKER_PREFIX = ['E', 'H']; // one letter per broker, part of the room code
 const TOPIC = 'seqrz2';
 const QOS = 1 as const;
-/** How long a backgrounded/dropped human's turn waits before the AI covers it,
- * so a quick app-switch is never auto-played. They resume the instant they
- * return; a bot only steps in if they're still gone after this. */
-const AWAY_GRACE_MS = 60_000;
 /** How long the heir waits after a host's Last-Will before taking over. The will
  * also fires on a transient drop, and the host auto-reconnects (reconnectPeriod
  * 2000ms) and re-announces, this grace stops a blip creating two hosts. */
@@ -320,8 +317,11 @@ export class NetHost {
         }
         this.toPlayer(playerId, { t: 'joined', code: this.code, spectator: false });
         this.pushRoom();
-        this.pushState();
-        if (this.game) this.scheduleBots();
+        // afterChange re-arms the turn/clock timer too — otherwise a player who
+        // dropped and reconnected on their OWN turn would have no timeout at all
+        // in a timed game (it was cleared while they were away).
+        if (this.game) this.afterChange();
+        else this.pushState();
         return;
       }
       if (wantSpectate || this.started) {
@@ -482,6 +482,9 @@ export class NetHost {
         isBot: p.isBot,
         connected: p.connected,
         ready: p.ready,
+        // carry away/busy across host migration so a backgrounded player isn't
+        // suddenly auto-played by the new host's turn timer
+        away: p.away,
       })),
       started: this.started,
       core: this.game ? (core as GameCore) : null,
@@ -809,21 +812,19 @@ export class NetHost {
     const g = this.game;
     if (!g || g.winner || g.stalemate || this.botTimer) return;
     const cur = g.players[g.turn];
-    const rp = this.players.find((p) => p.id === cur.id);
-    // a real bot moves briskly; a busy/dropped human (away or connection lost)
-    // gets a long grace to return before the AI ever covers their turn
-    const humanBusy = !!rp && !cur.isBot && (rp.away || !rp.connected);
-    if (!cur.isBot && !humanBusy) return;
-    const delay = cur.isBot ? 750 + Math.random() * 800 : AWAY_GRACE_MS;
+    // Only a real bot seat is ever auto-played — and that includes a seat whose
+    // human deliberately tapped Leave (onLeave converts it to a bot so the rest
+    // of the table can keep going). A human who is merely away/busy or briefly
+    // disconnected is NEVER covered by the AI: the game simply waits for them to
+    // come back when it reaches their turn.
+    if (!cur.isBot) return;
     this.botTimer = setTimeout(
       () => {
         this.botTimer = null;
         const gg = this.game;
         if (!gg || gg.winner || gg.stalemate) return;
         const p = gg.players[gg.turn];
-        const r = this.players.find((x) => x.id === p.id);
-        const stillBusy = !!r && !p.isBot && (r.away || !r.connected);
-        if (!p.isBot && !stillBusy) return; // they came back — don't cover
+        if (!p.isBot) return; // no longer a bot seat (human returned) — don't cover
         const mv = chooseBotMove(gg, p);
         if (!applyMove(gg, p.id, mv).ok) {
           const dead = p.hand.find((c) => isDeadCard(gg, c));
@@ -853,9 +854,11 @@ export class NetHost {
     if (deadline === null) return;
     const cur = g.players[g.turn];
     const rp = this.players.find((p) => p.id === cur.id);
-    // never let the per-turn timer auto-play a busy/away player — the away
-    // grace (scheduleBots) is the only thing that eventually covers for them
-    if (!rp || cur.isBot || !rp.connected || rp.away) return;
+    // never auto-play a busy/away player: the game just waits for them. Check
+    // BOTH the roster (rp.away) and the game player (cur.away) — the game player
+    // is the source of truth that survives a host migration, where a snapshot
+    // could otherwise drop the roster flag.
+    if (!rp || cur.isBot || !rp.connected || rp.away || cur.away) return;
     this.turnTimer = setTimeout(
       () => {
         this.turnTimer = null;
