@@ -2851,7 +2851,12 @@ body.colorblind .chip-star {
 
   .game-header {
     padding: calc(6px + env(safe-area-inset-top)) 10px 6px;
-    gap: 8px;
+    gap: 6px;
+  }
+  /* the icon row grew, so tighten its gaps rather than let the turn text be
+     squeezed away (tap targets stay 44px) */
+  .gh-right {
+    gap: 4px;
   }
   .gh-logo {
     font-size: 0.82rem;
@@ -4225,4 +4230,34 @@ button.stats-line:hover {
   border-radius: 5px;
   padding: 0 5px;
   font-size: 0.9em;
+}
+
+/* "Full screen on iPhone" guide, opened from the expand button on iOS */
+.modal.ios-fs-help {
+  max-width: 380px;
+}
+.ios-fs-lead {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+.ios-fs-steps {
+  margin: 0 0 12px;
+  padding-left: 1.2em;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.ios-fs-steps li::marker {
+  color: var(--gold);
+  font-weight: 800;
+}
+.ios-fs-note {
+  margin: 0 0 14px;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  line-height: 1.45;
 }

@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Team } from '../../../shared/types';
-import { EMOTES, useStore } from '../store';
+import { EMOTES, isIOS, isIOSSafari, isIPhone, runningStandalone, useStore } from '../store';
 import Board from './Board';
 import Chat from './Chat';
 import { EmoteBar, FloatingEmotes, TurnTimer, UndoControls } from './GameExtras';
@@ -11,31 +11,194 @@ import Rules from './Rules';
 import Settings from './Settings';
 import WinOverlay from './WinOverlay';
 
-// iPhone browsers have no Fullscreen API (the installed app is the full-screen
-// path there); everywhere else this button expands the game over the browser UI
-const canFullscreen =
-  typeof document !== 'undefined' && !!document.documentElement.requestFullscreen;
+// Element fullscreen works on Android, desktop and iPadOS (older WebKit only
+// through the webkit- prefix), but iPhone Safari has no fullscreen at all. There
+// the installed app (Add to Home Screen) is the only way to lose the browser
+// bars, so the button explains that instead of silently doing nothing.
+// the DOM types declare these as always present, but they genuinely are not on
+// older WebKit, so describe them as optional to make the feature checks real
+interface FsEl {
+  requestFullscreen?: () => Promise<void>;
+  webkitRequestFullscreen?: () => Promise<void> | void;
+}
+interface FsDoc {
+  fullscreenEnabled?: boolean;
+  fullscreenElement?: Element | null;
+  exitFullscreen?: () => Promise<void>;
+  webkitFullscreenEnabled?: boolean;
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void> | void;
+}
+const fsDoc = () => document as unknown as FsDoc;
+const fsRoot = () => document.documentElement as unknown as FsEl;
+
+/** The method existing is not enough: inside an iframe without
+ * allow="fullscreen" it stays defined but always rejects, which would leave a
+ * visible button that silently does nothing. The *Enabled flag covers that. */
+function fullscreenSupported(): boolean {
+  const d = fsDoc();
+  const el = fsRoot();
+  if (el.requestFullscreen) return d.fullscreenEnabled !== false;
+  // iPhone Safari exposes the legacy webkit method but cannot actually go
+  // fullscreen, and reports webkitFullscreenEnabled false (iPad reports true),
+  // so this path must demand an explicit yes rather than merely "not false"
+  if (el.webkitRequestFullscreen) return d.webkitFullscreenEnabled === true;
+  return false;
+}
+function currentFsElement(): Element | null {
+  const d = fsDoc();
+  return d.fullscreenElement ?? d.webkitFullscreenElement ?? null;
+}
+function enterFullscreen() {
+  const el = fsRoot();
+  try {
+    if (el.requestFullscreen) void Promise.resolve(el.requestFullscreen()).catch(() => {});
+    else el.webkitRequestFullscreen?.();
+  } catch {
+    /* refused */
+  }
+}
+function leaveFullscreen() {
+  const d = fsDoc();
+  try {
+    if (d.exitFullscreen) void Promise.resolve(d.exitFullscreen()).catch(() => {});
+    else d.webkitExitFullscreen?.();
+  } catch {
+    /* refused */
+  }
+}
+
+/** Shown when the expand button is tapped on an iOS device with no fullscreen
+ * API, where the Home Screen app is the only way to lose the browser bars. The
+ * wording follows the actual device and browser: iPad keeps Share in the top
+ * toolbar, and non-Safari iOS browsers need Safari for Add to Home Screen. */
+function IosFullscreenHelp({ onClose }: { onClose: () => void }) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const phone = isIPhone();
+  const device = phone ? 'iPhone' : 'iPad';
+  const safari = isIOSSafari();
+  const shareWhere = phone ? 'the bottom bar' : 'the top toolbar';
+  const host = typeof window !== 'undefined' ? window.location.host : 'this site';
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <motion.div
+        className="modal ios-fs-help"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ios-fs-title"
+        onClick={(e) => e.stopPropagation()}
+        initial={{ opacity: 0, scale: 0.92, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 200, damping: 22 }}
+      >
+        <button ref={closeRef} className="modal-close" aria-label="Close" onClick={onClose}>
+          ✕
+        </button>
+        <h2 id="ios-fs-title">Full screen on {device}</h2>
+        {safari ? (
+          <>
+            <p className="ios-fs-lead">
+              Safari never lets a web page take the whole screen. Add Sequence to your Home Screen
+              once and it opens like a real app, with no address bar and no toolbar.
+            </p>
+            <ol className="ios-fs-steps">
+              <li>
+                Tap <b>Share</b> <span className="ios-share">⬆</span> in {shareWhere}
+              </li>
+              <li>
+                Scroll down and tap <b>Add to Home Screen</b>
+              </li>
+              <li>
+                Tap <b>Add</b>, then open Sequence from your Home Screen
+              </li>
+            </ol>
+          </>
+        ) : (
+          <>
+            <p className="ios-fs-lead">
+              This browser can&rsquo;t give a web page the whole screen on {device}. Open Sequence
+              in <b>Safari</b> and add it to your Home Screen, and it opens like a real app with no
+              browser bars.
+            </p>
+            <ol className="ios-fs-steps">
+              <li>
+                Open <b>{host}</b> in Safari
+              </li>
+              <li>
+                Tap <b>Share</b> <span className="ios-share">⬆</span>, then{' '}
+                <b>Add to Home Screen</b>
+              </li>
+              <li>Open Sequence from your Home Screen</li>
+            </ol>
+          </>
+        )}
+        <p className="ios-fs-note">
+          This game keeps playing in this tab, so you can finish it here and add the app later.
+        </p>
+        <button className="btn btn-primary" onClick={onClose}>
+          Got it
+        </button>
+      </motion.div>
+    </div>
+  );
+}
 
 function FullscreenButton() {
-  const [fs, setFs] = useState(() => !!document.fullscreenElement);
+  const [fs, setFs] = useState(() => !!currentFsElement());
+  const [help, setHelp] = useState(false);
   useEffect(() => {
-    const on = () => setFs(!!document.fullscreenElement);
+    const on = () => setFs(!!currentFsElement());
     document.addEventListener('fullscreenchange', on);
-    return () => document.removeEventListener('fullscreenchange', on);
+    document.addEventListener('webkitfullscreenchange', on);
+    return () => {
+      document.removeEventListener('fullscreenchange', on);
+      document.removeEventListener('webkitfullscreenchange', on);
+    };
   }, []);
-  if (!canFullscreen) return null;
+
+  const native = fullscreenSupported();
+  // iOS with no fullscreen API at all: we can still show the way to get there
+  const explainOnly = !native && isIOS();
+  // nothing useful to offer on this platform
+  if (!native && !explainOnly) return null;
+  // only the INSTALLED iOS app is already edge to edge. An installed app on
+  // Android/desktop is merely "standalone" (status bar / window frame remain),
+  // so it keeps the real fullscreen button.
+  if (explainOnly && runningStandalone()) return null;
+
+  const label = explainOnly ? 'How to play full screen' : fs ? 'Exit full screen' : 'Full screen';
   return (
-    <button
-      className="btn-icon"
-      title={fs ? 'Exit full screen' : 'Full screen'}
-      aria-pressed={fs}
-      onClick={() => {
-        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-        else document.documentElement.requestFullscreen().catch(() => {});
-      }}
-    >
-      {fs ? '⤢' : '⛶'}
-    </button>
+    <>
+      <button
+        className="btn-icon gh-fs"
+        title={label}
+        aria-label={label}
+        aria-haspopup={explainOnly ? 'dialog' : undefined}
+        aria-expanded={explainOnly ? help : undefined}
+        aria-pressed={explainOnly ? undefined : fs}
+        onClick={() => {
+          if (explainOnly) {
+            setHelp(true);
+            return;
+          }
+          if (currentFsElement()) leaveFullscreen();
+          else enterFullscreen();
+        }}
+      >
+        {!explainOnly && fs ? '⤢' : '⛶'}
+      </button>
+      {help && <IosFullscreenHelp onClose={() => setHelp(false)} />}
+    </>
   );
 }
 

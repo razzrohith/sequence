@@ -1463,3 +1463,24 @@ export function isIOS(): boolean {
     return false;
   }
 }
+
+/** An iPhone/iPod specifically: iPad puts Share in the top toolbar, not the
+ * bottom bar, so instructions differ. */
+export function isIPhone(): boolean {
+  try {
+    return /iPhone|iPod/.test(navigator.userAgent);
+  } catch {
+    return false;
+  }
+}
+
+/** Safari on iOS, as opposed to Chrome/Firefox/Edge or an in-app web view —
+ * those put Share elsewhere, or have no Add to Home Screen at all. */
+export function isIOSSafari(): boolean {
+  try {
+    if (!isIOS()) return false;
+    return !/CriOS|FxiOS|EdgiOS|OPiOS|Instagram|FBAN|FBAV|Line\//i.test(navigator.userAgent);
+  } catch {
+    return false;
+  }
+}
