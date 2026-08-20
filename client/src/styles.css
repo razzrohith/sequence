@@ -1902,6 +1902,9 @@ body.high-contrast .cf-mid-rank {
 .theme-opt[data-board='neon'] .theme-swatch {
   background: linear-gradient(165deg, #ff3cbe, #140a35 60%, #3cdcff);
 }
+.theme-opt[data-board='love'] .theme-swatch {
+  background: linear-gradient(165deg, #ff8fb8, #93264f 55%, #2a0a1a);
+}
 .avatar-opt {
   aspect-ratio: 1;
   border-radius: 12px;
@@ -3335,7 +3338,8 @@ body[data-board='abyss'] .game-main,
 body[data-board='inferno'] .game-main,
 body[data-board='aurora'] .game-main,
 body[data-board='sakura'] .game-main,
-body[data-board='neon'] .game-main {
+body[data-board='neon'] .game-main,
+body[data-board='love'] .game-main {
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -3547,14 +3551,67 @@ body[data-board='inferno'] .bf-word,
 body[data-board='aurora'] .bf-word,
 body[data-board='sakura'] .bf-word,
 body[data-board='neon'] .bf-word,
+body[data-board='love'] .bf-word,
 body[data-board='galaxy'] .bf-oval,
 body[data-board='abyss'] .bf-oval,
 body[data-board='inferno'] .bf-oval,
 body[data-board='aurora'] .bf-oval,
 body[data-board='sakura'] .bf-oval,
-body[data-board='neon'] .bf-oval {
+body[data-board='neon'] .bf-oval,
+body[data-board='love'] .bf-oval {
   color: var(--frame-ink);
   border-color: var(--frame-ink);
+}
+
+/* ---------- 💕 Love : warm rose sky, rising hearts, heartbeat glow ---------- */
+body[data-board='love'] {
+  --frame-ink: rgba(255, 232, 240, 0.97);
+}
+body[data-board='love'] .game-main {
+  background: linear-gradient(180deg, #2a0a1a 0%, #5c1230 52%, #93264f 100%);
+}
+/* two soft romantic glows that gently pulse like a heartbeat */
+body[data-board='love'] .game-main::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 45% at 24% 20%, rgba(255, 150, 190, 0.3), transparent 70%),
+    radial-gradient(60% 50% at 78% 84%, rgba(255, 95, 150, 0.26), transparent 70%);
+  animation: love-glow 3.4s ease-in-out infinite;
+}
+/* a field of soft-pink hearts drifting gently upward */
+body[data-board='love'] .game-main::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M12,21.35l-1.45-1.32C5.4,15.36,2,12.28,2,8.5C2,5.42,4.42,3,7.5,3c1.74,0,3.41,0.81,4.5,2.09C13.09,3.81,14.76,3,16.5,3C19.58,3,22,5.42,22,8.5c0,3.78-3.4,6.86-8.55,11.54L12,21.35z'%20fill='%23ff9ec4'%20opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 76px 76px;
+  animation: hearts-rise 13s linear infinite;
+}
+body[data-board='love'] .board-frame {
+  --frame-bg: linear-gradient(165deg, rgba(120, 30, 65, 0.62) 0%, rgba(70, 15, 40, 0.74) 100%);
+  border: 1px solid rgba(255, 165, 200, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 210, 225, 0.28),
+    0 0 44px rgba(232, 70, 132, 0.42),
+    var(--shadow-lg);
+  backdrop-filter: blur(6px);
+}
+@keyframes hearts-rise {
+  to {
+    background-position: 0 -76px;
+  }
+}
+@keyframes love-glow {
+  50% {
+    opacity: 0.72;
+    transform: scale(1.03);
+  }
 }
 
 /* ---------- 🌸 Sakura : twilight sky with drifting cherry petals ---------- */

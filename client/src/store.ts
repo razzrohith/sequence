@@ -104,6 +104,7 @@ export const BOARD_THEMES = [
   { id: 'aurora', label: '✨ Aurora' },
   { id: 'sakura', label: '🌸 Sakura' },
   { id: 'neon', label: '⚡ Neon Grid' },
+  { id: 'love', label: '💕 Love' },
 ];
 
 export interface Stats {
