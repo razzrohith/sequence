@@ -33,6 +33,17 @@ async function loadNet(): Promise<typeof import('./net')> {
   if (!NetMod) NetMod = await import('./net');
   return NetMod;
 }
+/** The transport is fetched on demand, so it can fail (offline, flaky network,
+ * a cached app shell whose server is unreachable). Report that instead of
+ * leaving the player on a "connecting" message that never resolves. NetMod is
+ * only set on success, so a later attempt retries the download. */
+async function loadNetOrNull(): Promise<typeof import('./net') | null> {
+  try {
+    return await loadNet();
+  } catch {
+    return null;
+  }
+}
 
 export type View = 'home' | 'lobby' | 'game';
 export type Mode = 'online' | 'local';
@@ -850,8 +861,12 @@ export const useStore = create<Store>((set, get) => ({
         // net.ts is already loaded here (we're inside a live guest), so this is
         // an instant cache hit
         const { name, playerId, prefs } = get();
-        const { NetHost } = await loadNet();
-        const host = new NetHost(
+        const mod = await loadNetOrNull();
+        if (!mod) {
+          get().toast('The host left and this device could not take over.', 'error');
+          return;
+        }
+        const host = new mod.NetHost(
           playerId,
           name || 'Player',
           prefs.avatar,
@@ -929,8 +944,13 @@ export const useStore = create<Store>((set, get) => ({
     const { name, playerId, prefs } = get();
     get()._goHome();
     get().toast('Setting up your room…');
-    const { NetHost } = await loadNet();
-    const host = new NetHost(playerId, name || 'Player', prefs.avatar, get().netHandlers());
+    const mod = await loadNetOrNull();
+    if (!mod) {
+      sfx.error();
+      get().toast('Could not load online play. Check your connection and try again.', 'error');
+      return;
+    }
+    const host = new mod.NetHost(playerId, name || 'Player', prefs.avatar, get().netHandlers());
     set({ net: host, netKind: 'host', mode: 'online', chat: [], lastEventSeen: 0, wasMyTurn: false });
   },
 
@@ -948,8 +968,13 @@ export const useStore = create<Store>((set, get) => ({
     const { name, playerId, prefs } = get();
     get()._goHome();
     get().toast('Connecting to room…');
-    const { NetGuest } = await loadNet();
-    const guest = new NetGuest(
+    const mod = await loadNetOrNull();
+    if (!mod) {
+      sfx.error();
+      get().toast('Could not load online play. Check your connection and try again.', 'error');
+      return;
+    }
+    const guest = new mod.NetGuest(
       code.trim().toUpperCase(),
       playerId,
       name || 'Player',
@@ -965,8 +990,13 @@ export const useStore = create<Store>((set, get) => ({
     const { name, playerId, prefs } = get();
     get()._goHome();
     get().toast('Connecting to watch…');
-    const { NetGuest } = await loadNet();
-    const guest = new NetGuest(
+    const mod = await loadNetOrNull();
+    if (!mod) {
+      sfx.error();
+      get().toast('Could not load online play. Check your connection and try again.', 'error');
+      return;
+    }
+    const guest = new mod.NetGuest(
       code.trim().toUpperCase(),
       playerId,
       name || 'Guest',
